@@ -122,6 +122,27 @@ export async function hostOpenPlaylist(items: PlaylistItem[]): Promise<string> {
   return res.path;
 }
 
+export async function hostPickFolder(): Promise<string | null> {
+  return hostFetch<string | null>("/api/dialog/pick-folder", {
+    method: "POST",
+    json: {},
+  });
+}
+
+export async function hostPickDatabasePath(): Promise<string | null> {
+  return hostFetch<string | null>("/api/dialog/pick-database", {
+    method: "POST",
+    json: {},
+  });
+}
+
+export async function hostImportSettings(): Promise<InitResponse | null> {
+  return hostFetch<InitResponse | null>("/api/dialog/import-settings", {
+    method: "POST",
+    json: {},
+  });
+}
+
 export function browserHostEnabled(): boolean {
   return isBrowserHost();
 }

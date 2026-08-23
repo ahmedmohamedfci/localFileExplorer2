@@ -1,5 +1,5 @@
 use std::io::Read;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
@@ -17,7 +17,11 @@ use crate::session::{
 use crate::settings::{self, normalize_extensions};
 
 pub const HOST_ADDR: &str = "127.0.0.1";
-pub const HOST_PORT: u16 = 666;
+/// Preferred first port; if taken (another app instance), try the next ones.
+pub const HOST_PORT_START: u16 = 666;
+const HOST_PORT_ATTEMPTS: u16 = 32;
+
+static BOUND_PORT: OnceLock<u16> = OnceLock::new();
 
 #[derive(RustEmbed)]
 #[folder = "../dist/"]
@@ -44,7 +48,12 @@ struct HostInfo {
 }
 
 pub fn host_url() -> String {
-    format!("http://{HOST_ADDR}:{HOST_PORT}/")
+    let port = BOUND_PORT.get().copied().unwrap_or(HOST_PORT_START);
+    format!("http://{HOST_ADDR}:{port}/")
+}
+
+pub fn bound_port() -> Option<u16> {
+    BOUND_PORT.get().copied()
 }
 
 pub fn start(sessions: Arc<SessionManager>) {
@@ -55,9 +64,27 @@ pub fn start(sessions: Arc<SessionManager>) {
     });
 }
 
+fn bind_server() -> AppResult<(Server, u16)> {
+    let mut last_err = String::new();
+    for offset in 0..HOST_PORT_ATTEMPTS {
+        let port = HOST_PORT_START.saturating_add(offset);
+        let addr = format!("{HOST_ADDR}:{port}");
+        match Server::http(&addr) {
+            Ok(server) => {
+                let _ = BOUND_PORT.set(port);
+                return Ok((server, port));
+            }
+            Err(e) => last_err = format!("{addr}: {e}"),
+        }
+    }
+    Err(AppError::Message(format!(
+        "Cannot bind browser host on ports {HOST_PORT_START}–{} ({last_err})",
+        HOST_PORT_START + HOST_PORT_ATTEMPTS - 1
+    )))
+}
+
 fn run_server(sessions: Arc<SessionManager>) -> AppResult<()> {
-    let addr = format!("{HOST_ADDR}:{HOST_PORT}");
-    let server = Server::http(&addr).map_err(|e| AppError::Message(format!("Cannot bind {addr}: {e}")))?;
+    let (server, port) = bind_server()?;
     eprintln!("Local File Explorer host listening on {}", host_url());
 
     for mut request in server.incoming_requests() {
@@ -73,7 +100,7 @@ fn run_server(sessions: Arc<SessionManager>) -> AppResult<()> {
         let response = match (method, path.as_str()) {
             (Method::Get, "/api/host/info") => json_response(StatusCode(200), &HostInfo {
                 url: host_url(),
-                port: HOST_PORT,
+                port,
             }),
             (Method::Get, "/api/default-settings") => {
                 match settings::load_settings() {
@@ -163,6 +190,40 @@ fn run_server(sessions: Arc<SessionManager>) -> AppResult<()> {
                 session.with_paths(|| {
                     let path = write_and_open_playlist(&items)?;
                     Ok(json!({ "path": path }))
+                })
+            }),
+            (Method::Post, "/api/dialog/pick-folder") => {
+                let path = rfd::FileDialog::new()
+                    .pick_folder()
+                    .map(|p| path_to_string(&p));
+                json_response(StatusCode(200), &path)
+            }
+            (Method::Post, "/api/dialog/pick-database") => {
+                let path = rfd::FileDialog::new()
+                    .add_filter("SQLite database", &["db", "sqlite", "sqlite3"])
+                    .set_file_name("file-index.db")
+                    .save_file()
+                    .map(|p| path_to_string(&p));
+                json_response(StatusCode(200), &path)
+            }
+            (Method::Post, "/api/dialog/import-settings") => with_session_route(&sessions, session_id, |session| {
+                let Some(path) = rfd::FileDialog::new()
+                    .add_filter("JSON settings", &["json"])
+                    .pick_file()
+                else {
+                    return Ok(None::<InitResponse>);
+                };
+                session.with_paths(|| {
+                    let settings = settings::import_settings_from(&path)?;
+                    let resolved = paths::resolve_database_path(&settings)?;
+                    paths::ensure_parent_dir(&resolved)?;
+                    let catalog_count = CatalogDb::open()?.catalog_count().unwrap_or(0);
+                    Ok(Some(InitResponse {
+                        settings,
+                        catalog_count,
+                        data_dir: path_to_string(&paths::data_dir()?),
+                        resolved_database_path: path_to_string(&resolved),
+                    }))
                 })
             }),
             (Method::Get, _) if path.starts_with("/api/") => {

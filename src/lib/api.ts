@@ -108,11 +108,13 @@ export function openPlaylist(items: PlaylistItem[]): Promise<string> {
 
 export function pickFolder(): Promise<string | null> {
   if (isTauri()) return invoke("pick_folder");
+  if (isBrowserHost()) return host.hostPickFolder();
   return requireHostOrTauri();
 }
 
 export function pickDatabasePath(): Promise<string | null> {
   if (isTauri()) return invoke("pick_database_path");
+  if (isBrowserHost()) return host.hostPickDatabasePath();
   return requireHostOrTauri();
 }
 
@@ -130,8 +132,13 @@ export function exportSettings(settings: AppSettings): Promise<string | null> {
   return Promise.resolve("download");
 }
 
-export function importSettings(): Promise<InitResponse | null> {
+export async function importSettings(): Promise<InitResponse | null> {
   if (isTauri()) return invoke("import_settings");
+  if (isBrowserHost()) {
+    const imported = await host.hostImportSettings();
+    if (imported) writeSettingsToHash(imported.settings);
+    return imported;
+  }
   return requireHostOrTauri();
 }
 
@@ -142,7 +149,9 @@ export function getResolvedDatabasePath(): Promise<string> {
 
 export function getHostUrl(): Promise<string> {
   if (isTauri()) return invoke("get_host_url");
-  if (isBrowserHost()) return Promise.resolve(host.BROWSER_HOST_URL);
+  if (isBrowserHost() && typeof window !== "undefined") {
+    return Promise.resolve(`${window.location.origin}/`);
+  }
   return Promise.resolve(host.BROWSER_HOST_URL);
 }
 

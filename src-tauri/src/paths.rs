@@ -194,6 +194,15 @@ pub fn db_path() -> AppResult<PathBuf> {
 }
 
 pub fn playlist_path() -> AppResult<PathBuf> {
+    // Isolate playlist when two instances share a folder via different --settings files.
+    if let Some(settings) = SETTINGS_FILE.get() {
+        let stem = settings
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "default".into());
+        return Ok(data_dir()?.join(format!("playlist-{stem}.mpcpl")));
+    }
     Ok(data_dir()?.join("playlist.mpcpl"))
 }
 
