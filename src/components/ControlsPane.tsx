@@ -42,13 +42,14 @@ export function SettingsPanel({
   const [rootsOpen, setRootsOpen] = useState(true);
   const [extOpen, setExtOpen] = useState(false);
   const [dataOpen, setDataOpen] = useState(false);
+  const [howToOpen, setHowToOpen] = useState(false);
 
   return (
     <div className="pane settings-stage">
       <div className="results-header">
         <div>
           <h1 style={{ margin: 0, fontSize: 15 }}>Settings</h1>
-          <div className="count">Scan, roots, extensions, data</div>
+          <div className="count">Scan, roots, extensions, data, help</div>
         </div>
         <button type="button" className="btn" onClick={onClose}>
           Back to results
@@ -226,6 +227,61 @@ export function SettingsPanel({
                   Import settings…
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+
+        <div className="section">
+          <button
+            type="button"
+            className="section-toggle"
+            onClick={() => setHowToOpen((v) => !v)}
+          >
+            <span className="chevron">{howToOpen ? "▼" : "▶"}</span>
+            <strong>How to run &amp; data layout</strong>
+          </button>
+          {howToOpen && (
+            <div className="section-body">
+              <p className="hint">
+                <strong>Desktop:</strong> run the EXE (or a shortcut). Default layout
+                beside the EXE: <span className="mono">settings.json</span>, catalog DB
+                and playlist under <span className="mono">data\</span>.
+              </p>
+              <p className="hint">
+                <strong>Custom settings file:</strong>
+              </p>
+              <pre className="help-pre">
+                {`local-file-explorer.exe --settings="D:\\x\\settings1.json"
+local-file-explorer.exe -s D:\\x\\settings2.json`}
+              </pre>
+              <p className="hint">
+                Data folder is the parent of that JSON. Use a different{" "}
+                <span className="mono">databasePath</span> in each file if catalogs should
+                stay separate. Playlists are named per settings stem (e.g.{" "}
+                <span className="mono">playlist-settings1.mpcpl</span>).
+              </p>
+              <p className="hint">
+                <strong>Custom data folder</strong> (own{" "}
+                <span className="mono">settings.json</span> + default DB inside):
+              </p>
+              <pre className="help-pre">
+                {`local-file-explorer.exe --data-dir="D:\\profiles\\movies"
+local-file-explorer.exe -d D:\\profiles\\music`}
+              </pre>
+              <p className="hint">
+                Env alternatives: <span className="mono">LFE_SETTINGS</span>,{" "}
+                <span className="mono">LFE_DATA_DIR</span>.
+              </p>
+              <p className="hint">
+                <strong>Browser:</strong> while the desktop app is running, open the
+                loopback host (preferred{" "}
+                <span className="mono">http://127.0.0.1:666/</span>; next instance uses
+                667, 668, …). Link is under <strong>Data &amp; settings</strong> above.
+                In Chrome: drag-drop a settings JSON, or use{" "}
+                <strong>Use desktop app settings</strong> to bind the tab to this
+                process’s settings/DB. Per-tab settings also live in the URL hash (
+                <span className="mono">#s=…</span>).
+              </p>
             </div>
           )}
         </div>

@@ -238,6 +238,20 @@ button:disabled {
   line-height: 1.35;
 }
 
+.help-pre {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  overflow-x: auto;
+}
+
 .field-row {
   display: flex;
   align-items: center;
