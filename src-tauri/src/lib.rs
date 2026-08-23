@@ -1,16 +1,20 @@
 mod commands;
 mod db;
 mod duration;
+mod host;
 mod models;
 mod paths;
 mod playlist;
 mod scan;
+mod session;
 mod settings;
 mod state;
 
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
+use session::SessionManager;
 use state::AppState;
 use tauri::{Manager, RunEvent, WindowEvent};
 
@@ -32,6 +36,12 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
+        .setup(|app| {
+            let sessions = Arc::new(SessionManager::new());
+            app.manage(sessions.clone());
+            host::start(sessions);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::init_app,
             commands::get_settings,
@@ -48,6 +58,7 @@ pub fn run() {
             commands::pick_database_path,
             commands::export_settings,
             commands::import_settings,
+            commands::get_host_url,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

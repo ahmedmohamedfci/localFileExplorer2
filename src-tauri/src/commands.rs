@@ -230,3 +230,8 @@ pub fn import_settings(app: AppHandle) -> AppResult<Option<InitResponse>> {
         resolved_database_path: path_to_string(&resolved),
     }))
 }
+
+#[tauri::command]
+pub fn get_host_url() -> String {
+    crate::host::host_url()
+}

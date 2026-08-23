@@ -14,8 +14,21 @@ use crate::models::{AppError, AppResult, AppSettings, FileRecord, ScanProgress};
 use crate::paths::path_to_string;
 use crate::settings::normalize_extensions;
 
+pub type ProgressSink = Arc<dyn Fn(ScanProgress) + Send + Sync>;
+
 pub fn run_scan(
     app: AppHandle,
+    settings: &AppSettings,
+    cancel: Arc<AtomicBool>,
+) -> AppResult<ScanProgress> {
+    let sink: ProgressSink = Arc::new(move |progress| {
+        let _ = app.emit("scan-progress", &progress);
+    });
+    run_scan_with_sink(sink, settings, cancel)
+}
+
+pub fn run_scan_with_sink(
+    sink: ProgressSink,
     settings: &AppSettings,
     cancel: Arc<AtomicBool>,
 ) -> AppResult<ScanProgress> {
@@ -33,7 +46,7 @@ pub fn run_scan(
             files: db.catalog_count()? as u64,
             current_folder: String::new(),
         };
-        let _ = app.emit("scan-progress", &progress);
+        sink(progress.clone());
         return Ok(progress);
     }
 
@@ -42,7 +55,7 @@ pub fn run_scan(
     let mut files = 0u64;
 
     emit(
-        &app,
+        &sink,
         "scanning",
         "Scanning…",
         scanned,
@@ -64,7 +77,7 @@ pub fn run_scan(
                 files: db.catalog_count().unwrap_or(0) as u64,
                 current_folder: String::new(),
             };
-            let _ = app.emit("scan-progress", &progress);
+            sink(progress.clone());
             return Ok(progress);
         }
 
@@ -88,7 +101,7 @@ pub fn run_scan(
                     files: db.catalog_count().unwrap_or(0) as u64,
                     current_folder: String::new(),
                 };
-                let _ = app.emit("scan-progress", &progress);
+                sink(progress.clone());
                 return Ok(progress);
             }
 
@@ -99,7 +112,7 @@ pub fn run_scan(
             let folder = entry.path();
             let folder_str = path_to_string(folder);
             emit(
-                &app,
+                &sink,
                 "scanning",
                 "Scanning…",
                 scanned,
@@ -152,7 +165,7 @@ pub fn run_scan(
                 } else {
                     let msg = format!("Filling durations ({filled})…");
                     emit(
-                        &app,
+                        &sink,
                         "scanning",
                         &msg,
                         scanned,
@@ -241,7 +254,7 @@ pub fn run_scan(
 
                 if files % 25 == 0 {
                     emit(
-                        &app,
+                        &sink,
                         "scanning",
                         "Scanning…",
                         scanned,
@@ -273,7 +286,7 @@ pub fn run_scan(
         files: catalog,
         current_folder: String::new(),
     };
-    let _ = app.emit("scan-progress", &progress);
+    sink(progress.clone());
     Ok(progress)
 }
 
@@ -344,7 +357,7 @@ fn fnv1a64(data: &[u8]) -> String {
 }
 
 fn emit(
-    app: &AppHandle,
+    sink: &ProgressSink,
     phase: &str,
     message: &str,
     scanned: u64,
@@ -360,7 +373,7 @@ fn emit(
         files,
         current_folder: current_folder.into(),
     };
-    let _ = app.emit("scan-progress", &progress);
+    sink(progress);
 }
 
 pub fn filter_and_sort(

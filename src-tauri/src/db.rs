@@ -20,7 +20,10 @@ pub struct FolderStats {
 
 impl CatalogDb {
     pub fn open() -> AppResult<Self> {
-        let path = db_path()?;
+        Self::open_at(&db_path()?)
+    }
+
+    pub fn open_at(path: &Path) -> AppResult<Self> {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }

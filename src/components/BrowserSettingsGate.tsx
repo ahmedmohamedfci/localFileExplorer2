@@ -6,9 +6,11 @@ type Props = {
   /** Shown when URL had `#s=` but it could not be decoded. */
   urlError?: string | null;
   onReady: (settings: AppSettings) => void;
+  /** When served from EXE localhost host — load native settings for this tab. */
+  onUseNativeDefault?: () => void;
 };
 
-export function BrowserSettingsGate({ urlError, onReady }: Props) {
+export function BrowserSettingsGate({ urlError, onReady, onUseNativeDefault }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(urlError ?? null);
@@ -110,13 +112,24 @@ export function BrowserSettingsGate({ urlError, onReady }: Props) {
           <button type="button" className="btn" disabled={busy} onClick={useDefaults}>
             Continue with defaults
           </button>
+          {onUseNativeDefault && (
+            <button
+              type="button"
+              className="btn"
+              disabled={busy}
+              onClick={() => onUseNativeDefault()}
+            >
+              Use desktop app settings
+            </button>
+          )}
         </div>
 
         {error && <p className="error-text gate-error">{error}</p>}
 
         <p className="gate-hint">
-          Full scan and catalog features need the desktop app (or the localhost
-          host). This browser view loads settings into the UI for this tab.
+          {onUseNativeDefault
+            ? "Scan, query, and MPC work through the desktop host. Each tab keeps its own settings in the URL."
+            : "Full scan and catalog features need the desktop app (or the localhost host). This browser view loads settings into the UI for this tab."}
         </p>
       </div>
     </div>

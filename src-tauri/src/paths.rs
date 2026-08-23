@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
@@ -5,6 +6,23 @@ use crate::models::{AppError, AppResult, AppSettings};
 
 static DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
 static SETTINGS_FILE: OnceLock<PathBuf> = OnceLock::new();
+
+thread_local! {
+    static SESSION_OVERRIDE: RefCell<Option<(PathBuf, PathBuf)>> = const { RefCell::new(None) };
+}
+
+/// Run API logic under a browser session's data/settings paths (HTTP host).
+pub fn with_session<F, R>(data_dir: PathBuf, settings_path: PathBuf, f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    SESSION_OVERRIDE.with(|slot| {
+        *slot.borrow_mut() = Some((data_dir, settings_path));
+        let out = f();
+        *slot.borrow_mut() = None;
+        out
+    })
+}
 
 /// Resolve data dir + optional settings file from CLI / env before the UI loads.
 ///
@@ -131,6 +149,9 @@ pub fn init_data_dir(override_dir: Option<PathBuf>) -> AppResult<PathBuf> {
 }
 
 pub fn data_dir() -> AppResult<PathBuf> {
+    if let Some((dir, _)) = SESSION_OVERRIDE.with(|s| s.borrow().clone()) {
+        return Ok(dir);
+    }
     DATA_DIR
         .get()
         .cloned()
@@ -138,6 +159,9 @@ pub fn data_dir() -> AppResult<PathBuf> {
 }
 
 pub fn settings_path() -> AppResult<PathBuf> {
+    if let Some((_, settings)) = SESSION_OVERRIDE.with(|s| s.borrow().clone()) {
+        return Ok(settings);
+    }
     if let Some(path) = SETTINGS_FILE.get() {
         return Ok(path.clone());
     }

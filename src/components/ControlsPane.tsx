@@ -17,6 +17,7 @@ type Props = {
   scanning: boolean;
   progress: ScanProgress;
   statusMessage: string | null;
+  hostUrl?: string | null;
 };
 
 /** Full-stage settings view: Scan, Roots, Extensions, Data & settings. */
@@ -35,6 +36,7 @@ export function SettingsPanel({
   scanning,
   progress,
   statusMessage,
+  hostUrl,
 }: Props) {
   const [scanOpen, setScanOpen] = useState(true);
   const [rootsOpen, setRootsOpen] = useState(true);
@@ -180,6 +182,14 @@ export function SettingsPanel({
           </button>
           {dataOpen && (
             <div className="section-body">
+              {hostUrl && (
+                <p className="hint">
+                  Browser UI:{" "}
+                  <a href={hostUrl} target="_blank" rel="noreferrer">
+                    {hostUrl}
+                  </a>
+                </p>
+              )}
               <p className="hint">
                 Settings file stays in the app data folder. Catalog DB path is stored in
                 settings.json and can point anywhere.

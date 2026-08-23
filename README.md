@@ -7,7 +7,9 @@ Desktop app (Tauri 2 + React) for indexing and filtering personal video/audio li
 - **Rust (Tauri)**: SQLite catalog, recursive scan (incremental + deep), playlist write, open file/MPC, folder picker. Kept lean for startup and I/O.
 - **JavaScript/React**: UI, pattern language (`+` AND, flexible substrings), live test filter, split-by-search grouping, formatting, settings orchestration.
 
-On launch the results list stays empty until **Apply filter**. Temporary `playlist.mpcpl` is deleted at startup. Data lives in a `data/` folder next to the executable (or `LFE_DATA_DIR`).
+On launch the results list stays empty until **Apply filter**. Temporary `playlist.mpcpl` is deleted at startup. Data lives beside the executable: `settings.json` next to the EXE, DB/playlist under `data/` (or `LFE_DATA_DIR` / `--settings` / `--data-dir`).
+
+When the desktop app runs, it also starts a **browser host** at [http://127.0.0.1:666/](http://127.0.0.1:666/) (loopback only). Open that URL in Chrome for the same UI; each tab keeps its own settings in the URL hash (`#s=…`). A link appears in **Settings → Data & settings**.
 
 ## Develop
 

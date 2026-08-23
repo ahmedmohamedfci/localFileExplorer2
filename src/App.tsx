@@ -10,7 +10,7 @@ import * as api from "./lib/api";
 import { compilePatternList, compileUserPattern, validatePattern } from "./lib/patterns";
 import { truncateMiddle } from "./lib/format";
 import { buildDisplayRows, enabledPatterns, rowsToPlaylistItems } from "./lib/results";
-import { isTauri } from "./lib/runtime";
+import { isBrowserHost, isTauri } from "./lib/runtime";
 import {
   defaultSettings,
   type AppSettings,
@@ -50,6 +50,30 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [queryError, setQueryError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [hostUrl, setHostUrl] = useState<string | null>(null);
+
+  async function bootBrowserSession(next: AppSettings) {
+    try {
+      const init = isBrowserHost()
+        ? await api.initBrowserSession(next)
+        : null;
+      if (init) {
+        setSettings(init.settings);
+        setDataDir(init.dataDir);
+        setCatalogCount(init.catalogCount);
+        setProgress((p) => ({ ...p, files: init.catalogCount }));
+      } else {
+        enterWithSettings(next, "(browser — URL settings)");
+        return;
+      }
+      setShowBrowserGate(false);
+      setGateUrlError(null);
+      setBootError(null);
+      setReady(true);
+    } catch (e) {
+      setBootError(e instanceof Error ? e.message : String(e));
+    }
+  }
 
   function enterWithSettings(next: AppSettings, dirLabel: string) {
     setSettings(next);
@@ -76,7 +100,7 @@ export default function App() {
         setShowBrowserGate(true);
         return;
       }
-      enterWithSettings(fromUrl.settings, "(browser — URL settings)");
+      void bootBrowserSession(fromUrl.settings);
       return;
     }
 
@@ -87,6 +111,7 @@ export default function App() {
         setDataDir(init.dataDir);
         setCatalogCount(init.catalogCount);
         setProgress((p) => ({ ...p, files: init.catalogCount }));
+        setHostUrl(await api.getHostUrl());
         setReady(true);
         unlisten = await listen<ScanProgress>("scan-progress", (event) => {
           const next = event.payload;
@@ -110,6 +135,36 @@ export default function App() {
       unlisten?.();
     };
   }, []);
+
+  useEffect(() => {
+    if (!ready || isTauri() || !isBrowserHost()) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const next = await api.getScanProgress();
+        if (cancelled) return;
+        setProgress(next);
+        setScanning(next.phase === "scanning");
+        if (next.phase === "done") {
+          setCatalogCount(next.files);
+          setStatusMessage("Scan complete");
+        } else if (next.phase === "error") {
+          setStatusMessage(next.message);
+        } else if (next.message === "Scan cancelled") {
+          setStatusMessage("Scan cancelled");
+          setScanning(false);
+        }
+      } catch {
+        /* host may be restarting */
+      }
+    };
+    const id = window.setInterval(tick, 500);
+    void tick();
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [ready]);
 
   const { rows, displayedFileCount, testError } = useMemo(
     () =>
@@ -276,7 +331,31 @@ export default function App() {
     return (
       <BrowserSettingsGate
         urlError={gateUrlError}
-        onReady={(next) => enterWithSettings(next, "(browser — URL settings)")}
+        onReady={(next) => {
+          if (isBrowserHost()) void bootBrowserSession(next);
+          else enterWithSettings(next, "(browser — URL settings)");
+        }}
+        onUseNativeDefault={
+          isBrowserHost()
+            ? async () => {
+                try {
+                  const init = await api.initBrowserSessionDefault();
+                  setSettings(init.settings);
+                  setDataDir(init.dataDir);
+                  setCatalogCount(init.catalogCount);
+                  setProgress((p) => ({ ...p, files: init.catalogCount }));
+                  setShowBrowserGate(false);
+                  setGateUrlError(null);
+                  setBootError(null);
+                  setReady(true);
+                } catch (e) {
+                  setGateUrlError(
+                    e instanceof Error ? e.message : String(e),
+                  );
+                }
+              }
+            : undefined
+        }
       />
     );
   }
@@ -324,6 +403,7 @@ export default function App() {
             scanning={scanning}
             progress={progress}
             statusMessage={statusMessage}
+            hostUrl={hostUrl}
           />
         ) : (
           <section className="main-stage">
