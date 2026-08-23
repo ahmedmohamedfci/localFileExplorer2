@@ -1,6 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
+import { BrowserSettingsGate } from "./components/BrowserSettingsGate";
 import { SettingsPanel } from "./components/ControlsPane";
 import { FileFilterPane } from "./components/FileFilterPane";
 import { ResultsTable, type TableSortField } from "./components/ResultsTable";
@@ -9,6 +10,7 @@ import * as api from "./lib/api";
 import { compilePatternList, compileUserPattern, validatePattern } from "./lib/patterns";
 import { truncateMiddle } from "./lib/format";
 import { buildDisplayRows, enabledPatterns, rowsToPlaylistItems } from "./lib/results";
+import { isTauri } from "./lib/runtime";
 import {
   defaultSettings,
   type AppSettings,
@@ -17,6 +19,7 @@ import {
   type ResultRow,
   type ScanProgress,
 } from "./lib/types";
+import { readSettingsFromHash } from "./lib/urlSettings";
 
 const idleProgress: ScanProgress = {
   phase: "idle",
@@ -30,6 +33,8 @@ const idleProgress: ScanProgress = {
 export default function App() {
   const [ready, setReady] = useState(false);
   const [bootError, setBootError] = useState<string | null>(null);
+  const [showBrowserGate, setShowBrowserGate] = useState(false);
+  const [gateUrlError, setGateUrlError] = useState<string | null>(null);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings());
   const [dataDir, setDataDir] = useState("");
   const [catalogCount, setCatalogCount] = useState(0);
@@ -46,8 +51,35 @@ export default function App() {
   const [queryError, setQueryError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  function enterWithSettings(next: AppSettings, dirLabel: string) {
+    setSettings(next);
+    setDataDir(dirLabel);
+    setCatalogCount(0);
+    setProgress((p) => ({ ...p, files: 0 }));
+    setShowBrowserGate(false);
+    setGateUrlError(null);
+    setBootError(null);
+    setReady(true);
+  }
+
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+
+    if (!isTauri()) {
+      const fromUrl = readSettingsFromHash();
+      if (fromUrl == null) {
+        setShowBrowserGate(true);
+        return;
+      }
+      if (!fromUrl.ok) {
+        setGateUrlError(fromUrl.error);
+        setShowBrowserGate(true);
+        return;
+      }
+      enterWithSettings(fromUrl.settings, "(browser — URL settings)");
+      return;
+    }
+
     (async () => {
       try {
         const init = await api.initApp();
@@ -240,6 +272,14 @@ export default function App() {
     }
   }
 
+  if (showBrowserGate) {
+    return (
+      <BrowserSettingsGate
+        urlError={gateUrlError}
+        onReady={(next) => enterWithSettings(next, "(browser — URL settings)")}
+      />
+    );
+  }
   if (bootError) {
     return <div className="boot">Failed to start: {bootError}</div>;
   }

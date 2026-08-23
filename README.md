@@ -23,8 +23,38 @@ Close the app window or press Ctrl+C in that terminal — the script kills the V
 
 Requires Rust stable and Visual Studio Build Tools (Windows).
 
-## Build
+## Build (standalone EXE)
 
-```bash
-npm run tauri build
+```powershell
+.\build-standalone.ps1
 ```
+
+Output EXE:
+
+`src-tauri\target\release\local-file-explorer.exe`
+
+Copy that EXE wherever you want. By default settings live at `settings.json` next to the EXE; the catalog DB and playlist go under `data\` beside the EXE.
+
+### Different settings per instance
+
+Point each shortcut/copy at its own JSON:
+
+```powershell
+.\local-file-explorer.exe --settings D:\profiles\movies\settings.json
+.\local-file-explorer.exe --settings D:\profiles\music\settings.json
+```
+
+Or use separate data folders (each gets its own `settings.json` + default DB):
+
+```powershell
+.\local-file-explorer.exe --data-dir D:\profiles\movies
+.\local-file-explorer.exe --data-dir D:\profiles\music
+```
+
+Env alternatives: `LFE_SETTINGS`, `LFE_DATA_DIR`.
+
+Put a distinct `databasePath` inside each settings JSON if catalogs should stay separate.
+
+## CI
+
+GitHub Actions (`.github/workflows/build-standalone.yml`) builds the Windows standalone EXE on push/PR to `main`/`v1` and on version tags (`v*` / `V*`). Download the artifact **`local-file-explorer-windows`** from the workflow run.

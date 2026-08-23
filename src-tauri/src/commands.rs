@@ -17,8 +17,18 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub fn init_app(data_dir: Option<String>) -> AppResult<InitResponse> {
-    let override_dir = data_dir.map(std::path::PathBuf::from);
-    let dir = paths::init_data_dir(override_dir)?;
+    // Prefer CLI/env already applied at process start. Frontend override only if unset.
+    let dir = match paths::data_dir() {
+        Ok(dir) => dir,
+        Err(_) => {
+            let override_dir = data_dir.map(std::path::PathBuf::from);
+            if override_dir.is_some() {
+                paths::init_data_dir(override_dir)?
+            } else {
+                paths::init_from_cli_and_env()?
+            }
+        }
+    };
     let _ = clear_playlist();
     let settings = settings::load_settings()?;
     let resolved = paths::resolve_database_path(&settings)?;

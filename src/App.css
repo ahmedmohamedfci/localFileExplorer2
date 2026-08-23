@@ -499,3 +499,91 @@ label.inline {
   place-items: center;
   color: var(--text-muted);
 }
+
+.gate {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, #2a3544 0%, transparent 55%),
+    var(--bg);
+}
+
+.gate-card {
+  width: min(440px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.gate-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.gate-lead {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.gate-lead code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.gate-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 140px;
+  padding: 20px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.gate-drop:hover,
+.gate-drop.is-dragging {
+  border-color: var(--accent);
+  background: var(--bg-selected);
+  color: var(--text);
+}
+
+.gate-drop.is-busy {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.gate-drop strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.gate-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.gate-error {
+  margin: 0;
+}
+
+.gate-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.4;
+}

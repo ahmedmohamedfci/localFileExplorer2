@@ -25,6 +25,9 @@ fn request_shutdown(app: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Apply --settings / --data-dir (or LFE_SETTINGS / LFE_DATA_DIR) before UI init.
+    let _ = paths::init_from_cli_and_env();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

@@ -4,25 +4,128 @@ use std::sync::OnceLock;
 use crate::models::{AppError, AppResult, AppSettings};
 
 static DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
+static SETTINGS_FILE: OnceLock<PathBuf> = OnceLock::new();
+
+/// Resolve data dir + optional settings file from CLI / env before the UI loads.
+///
+/// - `--settings <path>` / `-s` / `LFE_SETTINGS` → use that JSON; data dir = its parent
+/// - `--data-dir <path>` / `-d` / `LFE_DATA_DIR` → `{dir}/settings.json` (DB/playlist under dir)
+/// - default → settings `{exeDir}/settings.json`, data dir `{exeDir}/data`
+pub fn init_from_cli_and_env() -> AppResult<PathBuf> {
+    if let Some(existing) = DATA_DIR.get() {
+        return Ok(existing.clone());
+    }
+
+    let (settings_override, data_override) = parse_path_args();
+
+    let settings_override = settings_override.or_else(|| {
+        std::env::var("LFE_SETTINGS")
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .map(PathBuf::from)
+    });
+
+    if let Some(settings) = settings_override {
+        let settings = absolutize(&settings)?;
+        if let Some(parent) = settings.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent)?;
+            }
+        }
+        let dir = settings
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty())
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("."));
+        std::fs::create_dir_all(&dir)?;
+        let _ = SETTINGS_FILE.set(settings);
+        let _ = DATA_DIR.set(dir.clone());
+        return Ok(dir);
+    }
+
+    init_data_dir(data_override)
+}
+
+fn parse_path_args() -> (Option<PathBuf>, Option<PathBuf>) {
+    let args: Vec<String> = std::env::args().collect();
+    let mut settings: Option<PathBuf> = None;
+    let mut data_dir: Option<PathBuf> = None;
+    let mut i = 1usize;
+    while i < args.len() {
+        let arg = args[i].as_str();
+        if let Some(rest) = arg.strip_prefix("--settings=") {
+            settings = Some(PathBuf::from(rest));
+            i += 1;
+            continue;
+        }
+        if let Some(rest) = arg.strip_prefix("--data-dir=") {
+            data_dir = Some(PathBuf::from(rest));
+            i += 1;
+            continue;
+        }
+        match arg {
+            "--settings" | "-s" => {
+                if let Some(v) = args.get(i + 1) {
+                    settings = Some(PathBuf::from(v));
+                    i += 2;
+                    continue;
+                }
+            }
+            "--data-dir" | "-d" => {
+                if let Some(v) = args.get(i + 1) {
+                    data_dir = Some(PathBuf::from(v));
+                    i += 2;
+                    continue;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    (settings, data_dir)
+}
+
+fn absolutize(path: &Path) -> AppResult<PathBuf> {
+    if path.is_absolute() {
+        return Ok(path.to_path_buf());
+    }
+    let cwd = std::env::current_dir().map_err(AppError::Io)?;
+    Ok(cwd.join(path))
+}
 
 pub fn init_data_dir(override_dir: Option<PathBuf>) -> AppResult<PathBuf> {
     if let Some(existing) = DATA_DIR.get() {
         return Ok(existing.clone());
     }
 
-    let dir = if let Some(path) = override_dir {
-        path
-    } else if let Ok(custom) = std::env::var("LFE_DATA_DIR") {
-        PathBuf::from(custom)
+    let exe = std::env::current_exe().map_err(AppError::Io)?;
+    let exe_dir = exe
+        .parent()
+        .ok_or_else(|| AppError::Message("Cannot resolve executable directory".into()))?
+        .to_path_buf();
+
+    let env_data_dir = std::env::var("LFE_DATA_DIR")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .map(PathBuf::from);
+
+    let (dir, settings_beside_exe) = if let Some(path) = override_dir {
+        (path, false)
+    } else if let Some(custom) = env_data_dir {
+        (custom, false)
     } else {
-        let exe = std::env::current_exe().map_err(AppError::Io)?;
-        let parent = exe
-            .parent()
-            .ok_or_else(|| AppError::Message("Cannot resolve executable directory".into()))?;
-        parent.join("data")
+        (exe_dir.join("data"), true)
     };
 
+    let dir = absolutize(&dir)?;
     std::fs::create_dir_all(&dir)?;
+
+    // Default layout: settings next to the EXE; DB/playlist stay under `{exeDir}/data`.
+    if settings_beside_exe && SETTINGS_FILE.get().is_none() {
+        let settings = absolutize(&exe_dir.join("settings.json"))?;
+        let _ = SETTINGS_FILE.set(settings);
+    }
+
     let _ = DATA_DIR.set(dir.clone());
     Ok(dir)
 }
@@ -35,6 +138,9 @@ pub fn data_dir() -> AppResult<PathBuf> {
 }
 
 pub fn settings_path() -> AppResult<PathBuf> {
+    if let Some(path) = SETTINGS_FILE.get() {
+        return Ok(path.clone());
+    }
     Ok(data_dir()?.join("settings.json"))
 }
 

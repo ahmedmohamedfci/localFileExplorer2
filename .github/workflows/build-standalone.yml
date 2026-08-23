@@ -1,0 +1,61 @@
+name: Build standalone EXE
+
+on:
+  push:
+    branches: [main, v1]
+    tags: ["v*", "V*"]
+  pull_request:
+    branches: [main, v1]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Windows standalone EXE
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: windows-standalone
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build standalone EXE
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $env:CARGO_TARGET_DIR = Join-Path $PWD "src-tauri\target"
+          npm run tauri -- build --no-bundle
+          $exe = Join-Path $PWD "src-tauri\target\release\local-file-explorer.exe"
+          if (-not (Test-Path $exe)) {
+            throw "EXE not found at $exe"
+          }
+          Write-Host "Built: $exe"
+          Get-Item $exe | Format-List FullName, Length, LastWriteTime
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-file-explorer-windows
+          path: src-tauri/target/release/local-file-explorer.exe
+          if-no-files-found: error
+          retention-days: 30

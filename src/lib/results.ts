@@ -64,7 +64,7 @@ export function buildDisplayRows(args: {
     );
     const groupKey = entry.pattern;
     const collapsed = collapsedGroups.has(groupKey);
-    const label = `000${entry.pattern}`;
+    const label = `000${entry.pattern}(.search)`;
 
     if (collapsed) {
       rows.push({
@@ -116,6 +116,6 @@ export function rowsToPlaylistItems(rows: ResultRow[]): {
       if (r.kind === "file") {
         return { path: r.file.path, isDelimiter: false };
       }
-      return { path: r.label, isDelimiter: true };
+      return { path: r.label, isDelimiter: false };
     });
 }
