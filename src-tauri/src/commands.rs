@@ -39,6 +39,7 @@ pub fn init_app(data_dir: Option<String>) -> AppResult<InitResponse> {
         catalog_count,
         data_dir: path_to_string(&dir),
         resolved_database_path: path_to_string(&resolved),
+        settings_path: path_to_string(&paths::settings_path()?),
     })
 }
 
@@ -228,6 +229,7 @@ pub fn import_settings(app: AppHandle) -> AppResult<Option<InitResponse>> {
         catalog_count,
         data_dir: path_to_string(&paths::data_dir()?),
         resolved_database_path: path_to_string(&resolved),
+        settings_path: path_to_string(&paths::settings_path()?),
     }))
 }
 

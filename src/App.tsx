@@ -20,6 +20,7 @@ import {
   type ScanProgress,
 } from "./lib/types";
 import { readSettingsFromHash } from "./lib/urlSettings";
+import { syncWindowTitle } from "./lib/windowTitle";
 
 const idleProgress: ScanProgress = {
   phase: "idle",
@@ -62,6 +63,7 @@ export default function App() {
         setDataDir(init.dataDir);
         setCatalogCount(init.catalogCount);
         setProgress((p) => ({ ...p, files: init.catalogCount }));
+        syncWindowTitle(init.settingsPath);
       } else {
         enterWithSettings(next, "(browser — URL settings)");
         return;
@@ -80,6 +82,7 @@ export default function App() {
     setDataDir(dirLabel);
     setCatalogCount(0);
     setProgress((p) => ({ ...p, files: 0 }));
+    syncWindowTitle(null);
     setShowBrowserGate(false);
     setGateUrlError(null);
     setBootError(null);
@@ -111,6 +114,7 @@ export default function App() {
         setDataDir(init.dataDir);
         setCatalogCount(init.catalogCount);
         setProgress((p) => ({ ...p, files: init.catalogCount }));
+        syncWindowTitle(init.settingsPath);
         setHostUrl(await api.getHostUrl());
         setReady(true);
         unlisten = await listen<ScanProgress>("scan-progress", (event) => {
@@ -273,6 +277,7 @@ export default function App() {
       setSettings(imported.settings);
       setDataDir(imported.dataDir);
       setCatalogCount(imported.catalogCount);
+      syncWindowTitle(imported.settingsPath);
       setFiles([]);
       setHasApplied(false);
       setSelectedId(null);
@@ -344,6 +349,7 @@ export default function App() {
                   setDataDir(init.dataDir);
                   setCatalogCount(init.catalogCount);
                   setProgress((p) => ({ ...p, files: init.catalogCount }));
+                  syncWindowTitle(init.settingsPath);
                   setShowBrowserGate(false);
                   setGateUrlError(null);
                   setBootError(null);

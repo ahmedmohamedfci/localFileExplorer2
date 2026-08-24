@@ -223,6 +223,7 @@ fn run_server(sessions: Arc<SessionManager>) -> AppResult<()> {
                         catalog_count,
                         data_dir: path_to_string(&paths::data_dir()?),
                         resolved_database_path: path_to_string(&resolved),
+                        settings_path: path_to_string(&paths::settings_path()?),
                     }))
                 })
             }),

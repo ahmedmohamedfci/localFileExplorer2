@@ -123,6 +123,7 @@ pub struct InitResponse {
     pub catalog_count: i64,
     pub data_dir: String,
     pub resolved_database_path: String,
+    pub settings_path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

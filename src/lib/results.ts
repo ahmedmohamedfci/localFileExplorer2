@@ -64,7 +64,8 @@ export function buildDisplayRows(args: {
     );
     const groupKey = entry.pattern;
     const collapsed = collapsedGroups.has(groupKey);
-    const label = `000${entry.pattern}(.search)`;
+    const listName = entry.pattern.replace(/[/\\]/g, "");
+    const label = `000${listName}(.search)`;
 
     if (collapsed) {
       rows.push({

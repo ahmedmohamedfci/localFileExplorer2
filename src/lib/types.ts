@@ -46,6 +46,7 @@ export type InitResponse = {
   catalogCount: number;
   dataDir: string;
   resolvedDatabasePath: string;
+  settingsPath: string;
 };
 
 export type ResultRow =

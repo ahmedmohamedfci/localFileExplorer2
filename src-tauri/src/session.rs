@@ -102,6 +102,7 @@ fn build_init_response(settings: &AppSettings, data_dir: &PathBuf) -> AppResult<
         catalog_count,
         data_dir: path_to_string(data_dir),
         resolved_database_path: path_to_string(&resolved),
+        settings_path: path_to_string(&paths::settings_path()?),
     })
 }
 
