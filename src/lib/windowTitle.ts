@@ -10,7 +10,10 @@ export function syncWindowTitle(settingsPath?: string | null): void {
   const base = `${APP_TITLE} v${APP_VERSION}`;
   const title = path ? `${base} — ${path}` : base;
   document.title = title;
-  if (isTauri()) {
-    void getCurrentWindow().setTitle(title);
-  }
+  if (!isTauri()) return;
+  void getCurrentWindow()
+    .setTitle(title)
+    .catch((err) => {
+      console.warn("Failed to set window title:", err);
+    });
 }

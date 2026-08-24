@@ -4,6 +4,7 @@ import {
   type AppSettings,
   type PatternEntry,
 } from "./types";
+import { normalizeTableColumns } from "./tableColumns";
 
 const HASH_KEY = "s";
 
@@ -77,6 +78,7 @@ export function parseSettingsJson(raw: string): AppSettings {
     deepScan: Boolean(obj.deepScan),
     databasePath:
       typeof obj.databasePath === "string" ? obj.databasePath : "",
+    tableColumns: normalizeTableColumns(obj.tableColumns),
   };
 }
 

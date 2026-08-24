@@ -13,12 +13,14 @@ import { buildDisplayRows, enabledPatterns, rowsToPlaylistItems } from "./lib/re
 import { isBrowserHost, isTauri } from "./lib/runtime";
 import {
   defaultSettings,
+  hydrateSettings,
   type AppSettings,
   type FileRecord,
   type PatternEntry,
   type ResultRow,
   type ScanProgress,
 } from "./lib/types";
+import { type TableColumnConfig } from "./lib/tableColumns";
 import { readSettingsFromHash } from "./lib/urlSettings";
 import { syncWindowTitle } from "./lib/windowTitle";
 
@@ -51,6 +53,7 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [queryError, setQueryError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [leftPaneOpen, setLeftPaneOpen] = useState(true);
   const [hostUrl, setHostUrl] = useState<string | null>(null);
 
   async function bootBrowserSession(next: AppSettings) {
@@ -59,7 +62,7 @@ export default function App() {
         ? await api.initBrowserSession(next)
         : null;
       if (init) {
-        setSettings(init.settings);
+        setSettings(hydrateSettings(init.settings));
         setDataDir(init.dataDir);
         setCatalogCount(init.catalogCount);
         setProgress((p) => ({ ...p, files: init.catalogCount }));
@@ -78,7 +81,7 @@ export default function App() {
   }
 
   function enterWithSettings(next: AppSettings, dirLabel: string) {
-    setSettings(next);
+    setSettings(hydrateSettings(next));
     setDataDir(dirLabel);
     setCatalogCount(0);
     setProgress((p) => ({ ...p, files: 0 }));
@@ -111,7 +114,7 @@ export default function App() {
     (async () => {
       try {
         const init = await api.initApp();
-        setSettings(init.settings);
+        setSettings(hydrateSettings(init.settings));
         setDataDir(init.dataDir);
         setCatalogCount(init.catalogCount);
         setProgress((p) => ({ ...p, files: init.catalogCount }));
@@ -204,7 +207,7 @@ export default function App() {
       }
 
       const saved = await api.saveSettings(nextSettings);
-      setSettings(saved);
+      setSettings(hydrateSettings(saved));
       const result = await api.queryFiles({
         includeClauses: compiledInclude.clauses,
         ignoreClauses: compiledIgnore.clauses,
@@ -228,7 +231,7 @@ export default function App() {
   async function saveAndScan() {
     try {
       const saved = await api.saveSettings(settings);
-      setSettings(saved);
+      setSettings(hydrateSettings(saved));
       setStatusMessage("Settings saved");
       setScanning(true);
       await api.startScan(saved);
@@ -254,7 +257,7 @@ export default function App() {
   async function saveSettingsOnly() {
     try {
       const saved = await api.saveSettings(settings);
-      setSettings(saved);
+      setSettings(hydrateSettings(saved));
       setCatalogCount(await api.getCatalogCount());
       setStatusMessage("Settings saved");
     } catch (e) {
@@ -275,7 +278,7 @@ export default function App() {
     try {
       const imported = await api.importSettings();
       if (!imported) return;
-      setSettings(imported.settings);
+      setSettings(hydrateSettings(imported.settings));
       setDataDir(imported.dataDir);
       setCatalogCount(imported.catalogCount);
       syncWindowTitle(imported.settingsPath);
@@ -333,6 +336,12 @@ export default function App() {
     }
   }
 
+  function onTableColumnsChange(columns: TableColumnConfig[]) {
+    const next = { ...settings, tableColumns: columns };
+    setSettings(next);
+    void api.saveSettings(next);
+  }
+
   if (showBrowserGate) {
     return (
       <BrowserSettingsGate
@@ -346,7 +355,7 @@ export default function App() {
             ? async () => {
                 try {
                   const init = await api.initBrowserSessionDefault();
-                  setSettings(init.settings);
+                  setSettings(hydrateSettings(init.settings));
                   setDataDir(init.dataDir);
                   setCatalogCount(init.catalogCount);
                   setProgress((p) => ({ ...p, files: init.catalogCount }));
@@ -382,16 +391,33 @@ export default function App() {
   );
 
   return (
-    <div className="app-shell">
-      <FileFilterPane
-        settings={settings}
-        applying={applying}
-        onChange={setSettings}
-        onIncludeChange={(includeRegexes) => setSettings({ ...settings, includeRegexes })}
-        onIgnoreChange={(ignoreRegexes) => setSettings({ ...settings, ignoreRegexes })}
-        onApply={() => applyFilter()}
-        onOpenSettings={() => setSettingsOpen(true)}
-      />
+    <div className={`app-shell ${leftPaneOpen ? "" : "left-collapsed"}`}>
+      {leftPaneOpen ? (
+        <FileFilterPane
+          settings={settings}
+          applying={applying}
+          settingsOpen={settingsOpen}
+          onChange={setSettings}
+          onIncludeChange={(includeRegexes) =>
+            setSettings({ ...settings, includeRegexes })
+          }
+          onIgnoreChange={(ignoreRegexes) =>
+            setSettings({ ...settings, ignoreRegexes })
+          }
+          onApply={() => applyFilter()}
+          onToggleSettings={() => setSettingsOpen((v) => !v)}
+          onCollapse={() => setLeftPaneOpen(false)}
+        />
+      ) : (
+        <button
+          type="button"
+          className="left-expand-tab"
+          title="Show filters"
+          onClick={() => setLeftPaneOpen(true)}
+        >
+          ▶
+        </button>
+      )}
 
       <div className="pane pane-right">
         {settingsOpen ? (
@@ -420,19 +446,40 @@ export default function App() {
                 <div className="count">{countLabel}</div>
                 {queryError && <p className="error-text">{queryError}</p>}
               </div>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={rowsToPlaylistItems(rows).length === 0}
-                title={
-                  rowsToPlaylistItems(rows).length === 0
-                    ? "Results list is empty"
-                    : "Open playlist in MPC"
-                }
-                onClick={openSelectedPlaylist}
-              >
-                Open
-              </button>
+              <div className="results-header-actions">
+                {!leftPaneOpen && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => setLeftPaneOpen(true)}
+                      title="Show filters"
+                    >
+                      Filters
+                    </button>
+                    <button
+                      type="button"
+                      className="btn"
+                      onClick={() => setSettingsOpen(true)}
+                    >
+                      Settings
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={rowsToPlaylistItems(rows).length === 0}
+                  title={
+                    rowsToPlaylistItems(rows).length === 0
+                      ? "Results list is empty"
+                      : "Open playlist in MPC"
+                  }
+                  onClick={openSelectedPlaylist}
+                >
+                  Open
+                </button>
+              </div>
             </div>
 
             {selectedRow && (
@@ -494,6 +541,8 @@ export default function App() {
               selectedId={selectedId}
               sortField={settings.sortField}
               sortDir={settings.sortDir}
+              columns={settings.tableColumns}
+              onColumnsChange={onTableColumnsChange}
               emptyMessage={emptyMessage()}
               onSort={onTableSort}
               onSelect={(row) => setSelectedId(row.id)}

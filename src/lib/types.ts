@@ -1,3 +1,9 @@
+import {
+  DEFAULT_TABLE_COLUMNS,
+  normalizeTableColumns,
+  type TableColumnConfig,
+} from "./tableColumns";
+
 export type PatternEntry = {
   pattern: string;
   enabled: boolean;
@@ -14,6 +20,8 @@ export type AppSettings = {
   deepScan: boolean;
   /** Catalog SQLite path (absolute, or relative to data dir). */
   databasePath: string;
+  /** Results table columns (order, width, visibility). */
+  tableColumns: TableColumnConfig[];
 };
 
 export type FileRecord = {
@@ -113,5 +121,15 @@ export function defaultSettings(): AppSettings {
     splitBySearch: false,
     deepScan: false,
     databasePath: "",
+    tableColumns: DEFAULT_TABLE_COLUMNS.map((c) => ({ ...c })),
+  };
+}
+
+/** Fill missing/legacy fields after loading settings from disk or API. */
+export function hydrateSettings(raw: AppSettings): AppSettings {
+  return {
+    ...defaultSettings(),
+    ...raw,
+    tableColumns: normalizeTableColumns(raw.tableColumns),
   };
 }

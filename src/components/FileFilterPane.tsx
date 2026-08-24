@@ -8,7 +8,9 @@ type Props = {
   onIncludeChange: (entries: PatternEntry[]) => void;
   onIgnoreChange: (entries: PatternEntry[]) => void;
   onApply: () => void;
-  onOpenSettings: () => void;
+  onToggleSettings: () => void;
+  onCollapse: () => void;
+  settingsOpen: boolean;
   applying: boolean;
 };
 
@@ -18,24 +20,35 @@ export function FileFilterPane({
   onIncludeChange,
   onIgnoreChange,
   onApply,
-  onOpenSettings,
+  onToggleSettings,
+  onCollapse,
+  settingsOpen,
   applying,
 }: Props) {
   return (
     <aside className="pane pane-left">
-      <div className="pane-header">
-        <h1>File Filter</h1>
-        <p className="subtitle">Include &amp; ignore</p>
+      <div className="pane-header pane-header-row">
+        <div>
+          <h1>File Filter</h1>
+          <p className="subtitle">Include &amp; ignore</p>
+        </div>
+        <button
+          type="button"
+          className="btn-ghost"
+          title="Hide filters"
+          onClick={onCollapse}
+        >
+          ◀
+        </button>
       </div>
       <div className="pane-scroll">
         <button
           type="button"
-          className="btn btn-primary"
+          className={`btn ${settingsOpen ? "btn-primary" : ""}`}
           style={{ width: "100%", marginBottom: 12 }}
-          onClick={onApply}
-          disabled={applying}
+          onClick={onToggleSettings}
         >
-          {applying ? "Applying…" : "Apply filter"}
+          {settingsOpen ? "Back to results" : "Settings"}
         </button>
         <PatternList
           title="Include patterns"
@@ -96,11 +109,12 @@ export function FileFilterPane({
 
         <button
           type="button"
-          className="btn"
+          className="btn btn-primary"
           style={{ width: "100%", marginTop: 4 }}
-          onClick={onOpenSettings}
+          onClick={onApply}
+          disabled={applying}
         >
-          Settings
+          {applying ? "Applying…" : "Apply filter"}
         </button>
       </div>
     </aside>

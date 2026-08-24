@@ -35,6 +35,14 @@ pub struct PatternEntry {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TableColumnConfig {
+    pub id: String,
+    pub width: u32,
+    pub visible: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     pub roots: Vec<String>,
     pub extensions: Vec<String>,
@@ -48,6 +56,8 @@ pub struct AppSettings {
     /// Empty = `{dataDir}/file-index.db`.
     #[serde(default)]
     pub database_path: String,
+    #[serde(default = "default_table_columns")]
+    pub table_columns: Vec<TableColumnConfig>,
 }
 
 impl Default for AppSettings {
@@ -62,8 +72,30 @@ impl Default for AppSettings {
             split_by_search: false,
             deep_scan: false,
             database_path: String::new(),
+            table_columns: default_table_columns(),
         }
     }
+}
+
+fn default_table_columns() -> Vec<TableColumnConfig> {
+    [
+        ("index", 56, true),
+        ("path", 480, true),
+        ("ext", 64, true),
+        ("sizeBytes", 84, true),
+        ("durationMs", 84, true),
+        ("mtime", 150, true),
+        ("atime", 150, false),
+        ("birthtime", 150, false),
+        ("indexedAt", 150, false),
+    ]
+    .into_iter()
+    .map(|(id, width, visible)| TableColumnConfig {
+        id: id.into(),
+        width,
+        visible,
+    })
+    .collect()
 }
 
 pub fn default_extensions() -> Vec<String> {

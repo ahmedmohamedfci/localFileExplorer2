@@ -60,6 +60,38 @@ button:disabled {
   min-height: 0;
 }
 
+.app-shell.left-collapsed {
+  grid-template-columns: 28px 1fr;
+}
+
+.left-expand-tab {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  padding: 10px 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.left-expand-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.pane-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pane-header-row h1 {
+  margin: 0;
+}
+
 .pane {
   min-height: 0;
   min-width: 0;
@@ -144,6 +176,13 @@ button:disabled {
   padding: 10px 14px;
   border-bottom: 1px solid var(--border-soft);
   flex-shrink: 0;
+}
+
+.results-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .results-header .count {
@@ -367,10 +406,47 @@ textarea {
   border-top: 1px solid var(--border-soft);
 }
 
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border-soft);
+  flex-shrink: 0;
+}
+
+.column-picker {
+  position: relative;
+}
+
+.column-picker-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  min-width: 180px;
+  padding: 8px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.column-picker-item {
+  display: flex;
+  width: 100%;
+  margin: 4px 0;
+}
+
+.table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
 .table-head,
 .table-row {
   display: grid;
-  grid-template-columns: 56px 1fr 64px 84px 84px 150px;
   gap: 8px;
   align-items: center;
   padding: 0 14px;
@@ -385,6 +461,32 @@ textarea {
   letter-spacing: 0.04em;
   flex-shrink: 0;
   background: var(--bg-panel);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.table-head-cell {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding-right: 6px;
+}
+
+.col-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+}
+
+.col-resizer:hover {
+  background: rgba(59, 130, 246, 0.25);
 }
 
 .sort-head {

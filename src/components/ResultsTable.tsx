@@ -1,20 +1,24 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { ResultRow } from "../lib/types";
-import { formatDuration, formatSize, formatTimestamp } from "../lib/format";
+import {
+  TABLE_COLUMN_META,
+  formatCell,
+  visibleColumns,
+  type TableColumnConfig,
+  type TableColumnId,
+  type TableSortField,
+} from "../lib/tableColumns";
 
-export type TableSortField =
-  | "path"
-  | "ext"
-  | "sizeBytes"
-  | "durationMs"
-  | "mtime";
+export type { TableSortField };
 
 type Props = {
   rows: ResultRow[];
   selectedId: string | null;
   sortField: string;
   sortDir: "asc" | "desc";
+  columns: TableColumnConfig[];
+  onColumnsChange: (columns: TableColumnConfig[]) => void;
   onSort: (field: TableSortField) => void;
   onSelect: (row: ResultRow) => void;
   onOpenFile: (path: string) => void;
@@ -22,20 +26,13 @@ type Props = {
   emptyMessage: string;
 };
 
-const COLUMNS: { field: TableSortField | null; label: string }[] = [
-  { field: null, label: "#" },
-  { field: "path", label: "Path" },
-  { field: "ext", label: "Ext" },
-  { field: "sizeBytes", label: "Size" },
-  { field: "durationMs", label: "Duration" },
-  { field: "mtime", label: "Modified" },
-];
-
 export function ResultsTable({
   rows,
   selectedId,
   sortField,
   sortDir,
+  columns,
+  onColumnsChange,
   onSort,
   onSelect,
   onOpenFile,
@@ -43,6 +40,12 @@ export function ResultsTable({
   emptyMessage,
 }: Props) {
   const parentRef = useRef<HTMLDivElement>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const shown = visibleColumns(columns);
+  const gridTemplate = shown.map((c) => `${c.width}px`).join(" ");
+  const totalWidth = shown.reduce((sum, c) => sum + c.width, 0);
+
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
@@ -50,127 +53,232 @@ export function ResultsTable({
     overscan: 12,
   });
 
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (!pickerRef.current?.contains(e.target as Node)) {
+        setPickerOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [pickerOpen]);
+
+  function setWidth(id: TableColumnId, width: number) {
+    const min = TABLE_COLUMN_META[id].minWidth;
+    onColumnsChange(
+      columns.map((c) =>
+        c.id === id ? { ...c, width: Math.max(min, Math.round(width)) } : c,
+      ),
+    );
+  }
+
+  function toggleVisible(id: TableColumnId) {
+    const next = columns.map((c) =>
+      c.id === id ? { ...c, visible: !c.visible } : c,
+    );
+    if (!next.some((c) => c.visible)) return;
+    onColumnsChange(next);
+  }
+
+  function onResizeStart(
+    e: React.MouseEvent,
+    id: TableColumnId,
+    startWidth: number,
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const onMove = (ev: MouseEvent) => {
+      setWidth(id, startWidth + (ev.clientX - startX));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }
+
+  function renderCells(row: ResultRow) {
+    return shown.map((col) => {
+      if (row.kind === "section") {
+        if (col.id === "index") {
+          return (
+            <div key={col.id} className="num">
+              ▶
+            </div>
+          );
+        }
+        if (col.id === "path") {
+          return (
+            <div key={col.id} className="path">
+              {row.label} ({row.count})
+            </div>
+          );
+        }
+        return <div key={col.id} />;
+      }
+      if (row.kind === "delimiter") {
+        if (col.id === "index") {
+          return (
+            <div key={col.id} className="num">
+              {row.toggle === "collapse" ? "▼" : row.playlistIndex}
+            </div>
+          );
+        }
+        if (col.id === "path") {
+          return (
+            <div key={col.id} className="path">
+              {row.label}
+            </div>
+          );
+        }
+        return <div key={col.id} />;
+      }
+      const text = formatCell(col.id, {
+        playlistIndex: row.playlistIndex,
+        file: row.file,
+      });
+      return (
+        <div
+          key={col.id}
+          className={col.id === "path" ? "path" : "num"}
+          title={col.id === "path" ? row.file.path : undefined}
+        >
+          {text}
+        </div>
+      );
+    });
+  }
+
   return (
     <div className="table-wrap">
-      <div className="table-head">
-        {COLUMNS.map((col) => {
-          if (!col.field) {
-            return <div key={col.label}>{col.label}</div>;
-          }
-          const active = sortField === col.field;
-          const arrow = active ? (sortDir === "asc" ? " ▲" : " ▼") : "";
-          return (
-            <button
-              key={col.field}
-              type="button"
-              className={`sort-head ${active ? "active" : ""}`}
-              onClick={() => onSort(col.field!)}
-              title={`Sort by ${col.label}`}
-            >
-              {col.label}
-              {arrow}
-            </button>
-          );
-        })}
+      <div className="table-toolbar">
+        <div className="column-picker" ref={pickerRef}>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setPickerOpen((v) => !v)}
+          >
+            Columns
+          </button>
+          {pickerOpen && (
+            <div className="column-picker-menu">
+              <div className="hint" style={{ marginBottom: 6 }}>
+                Show or hide fields from the catalog.
+              </div>
+              {columns.map((col) => (
+                <label key={col.id} className="inline column-picker-item">
+                  <input
+                    type="checkbox"
+                    checked={col.visible}
+                    onChange={() => toggleVisible(col.id)}
+                  />
+                  {TABLE_COLUMN_META[col.id].label}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-      <div
-        className="table-body"
-        ref={parentRef}
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key !== "Enter" || !selectedId) return;
-          const row = rows.find((r) => r.id === selectedId);
-          if (row?.kind === "file") onOpenFile(row.file.path);
-        }}
-      >
-        {rows.length === 0 ? (
-          <div className="table-empty">{emptyMessage}</div>
-        ) : (
-          <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-            {virtualizer.getVirtualItems().map((item) => {
-              const row = rows[item.index];
-              const selected = row.id === selectedId;
-              if (row.kind === "section") {
-                return (
-                  <div
-                    key={row.id}
-                    className="table-row section"
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      transform: `translateY(${item.start}px)`,
-                    }}
-                    onClick={() => onToggleGroup(row.groupKey)}
+      <div className="table-scroll">
+        <div className="table-head" style={{ width: totalWidth, gridTemplateColumns: gridTemplate }}>
+          {shown.map((col) => {
+            const meta = TABLE_COLUMN_META[col.id];
+            const active = meta.sortable && sortField === col.id;
+            const arrow = active ? (sortDir === "asc" ? " ▲" : " ▼") : "";
+            return (
+              <div key={col.id} className="table-head-cell">
+                {meta.sortable ? (
+                  <button
+                    type="button"
+                    className={`sort-head ${active ? "active" : ""}`}
+                    onClick={() => onSort(col.id as TableSortField)}
+                    title={`Sort by ${meta.label}`}
                   >
-                    <div className="num">▶</div>
-                    <div className="path">
-                      {row.label} ({row.count})
-                    </div>
-                    <div />
-                    <div />
-                    <div />
-                    <div />
-                  </div>
-                );
-              }
-              if (row.kind === "delimiter") {
+                    {meta.label}
+                    {arrow}
+                  </button>
+                ) : (
+                  <span>{meta.label}</span>
+                )}
+                <span
+                  className="col-resizer"
+                  onMouseDown={(e) => onResizeStart(e, col.id, col.width)}
+                  title="Drag to resize"
+                />
+              </div>
+            );
+          })}
+        </div>
+        <div
+          className="table-body"
+          ref={parentRef}
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || !selectedId) return;
+            const row = rows.find((r) => r.id === selectedId);
+            if (row?.kind === "file") onOpenFile(row.file.path);
+          }}
+        >
+          {rows.length === 0 ? (
+            <div className="table-empty">{emptyMessage}</div>
+          ) : (
+            <div
+              style={{
+                height: virtualizer.getTotalSize(),
+                position: "relative",
+                width: totalWidth,
+              }}
+            >
+              {virtualizer.getVirtualItems().map((item) => {
+                const row = rows[item.index];
+                const selected = row.id === selectedId;
+                const kindClass =
+                  row.kind === "section"
+                    ? "section"
+                    : row.kind === "delimiter"
+                      ? "delimiter"
+                      : "";
                 return (
                   <div
                     key={row.id}
-                    className={`table-row delimiter ${selected ? "selected" : ""}`}
+                    className={`table-row ${kindClass} ${selected ? "selected" : ""}`}
                     style={{
                       position: "absolute",
                       top: 0,
                       left: 0,
-                      width: "100%",
+                      width: totalWidth,
+                      gridTemplateColumns: gridTemplate,
                       transform: `translateY(${item.start}px)`,
                     }}
+                    title={row.kind === "file" ? row.file.path : undefined}
                     onClick={() => {
+                      if (row.kind === "section") {
+                        onToggleGroup(row.groupKey);
+                        return;
+                      }
                       onSelect(row);
-                      if (row.toggle === "collapse" && row.groupKey) {
+                      if (
+                        row.kind === "delimiter" &&
+                        row.toggle === "collapse" &&
+                        row.groupKey
+                      ) {
                         onToggleGroup(row.groupKey);
                       }
                     }}
+                    onDoubleClick={() => {
+                      if (row.kind === "file") onOpenFile(row.file.path);
+                    }}
                   >
-                    <div className="num">
-                      {row.toggle === "collapse" ? "▼" : row.playlistIndex}
-                    </div>
-                    <div className="path">{row.label}</div>
-                    <div />
-                    <div />
-                    <div />
-                    <div />
+                    {renderCells(row)}
                   </div>
                 );
-              }
-              return (
-                <div
-                  key={row.id}
-                  className={`table-row ${selected ? "selected" : ""}`}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
-                    width: "100%",
-                    transform: `translateY(${item.start}px)`,
-                  }}
-                  title={row.file.path}
-                  onClick={() => onSelect(row)}
-                  onDoubleClick={() => onOpenFile(row.file.path)}
-                >
-                  <div className="num">{row.playlistIndex}</div>
-                  <div className="path">{row.file.path}</div>
-                  <div className="num">{row.file.ext}</div>
-                  <div className="num">{formatSize(row.file.sizeBytes)}</div>
-                  <div className="num">{formatDuration(row.file.durationMs)}</div>
-                  <div className="num">{formatTimestamp(row.file.mtime)}</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
