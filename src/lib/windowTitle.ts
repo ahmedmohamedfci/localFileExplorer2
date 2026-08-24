@@ -1,11 +1,14 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import packageJson from "../../package.json";
 import { isTauri } from "./runtime";
 
 const APP_TITLE = "Local File Explorer";
+export const APP_VERSION = packageJson.version;
 
 export function syncWindowTitle(settingsPath?: string | null): void {
   const path = settingsPath?.trim();
-  const title = path ? `${APP_TITLE} — ${path}` : APP_TITLE;
+  const base = `${APP_TITLE} v${APP_VERSION}`;
+  const title = path ? `${base} — ${path}` : base;
   document.title = title;
   if (isTauri()) {
     void getCurrentWindow().setTitle(title);

@@ -91,6 +91,7 @@ export default function App() {
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
+    syncWindowTitle(null);
 
     if (!isTauri()) {
       const fromUrl = readSettingsFromHash();

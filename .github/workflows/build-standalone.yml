@@ -3,13 +3,12 @@ name: Build standalone EXE
 on:
   push:
     branches: [main, v1]
-    tags: ["v*", "V*"]
   pull_request:
     branches: [main, v1]
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-windows:
@@ -20,6 +19,59 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Bump patch version
+        id: bump
+        if: >
+          github.event_name == 'push'
+          && github.ref == 'refs/heads/main'
+          && !contains(github.event.head_commit.message, '[skip bump]')
+          && !contains(github.event.head_commit.message, '[skip ci]')
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
+          $parts = $pkg.version.Split('.')
+          if ($parts.Count -lt 3) { throw "Expected semver X.Y.Z, got $($pkg.version)" }
+          $major = [int]$parts[0]
+          $minor = [int]$parts[1]
+          $patch = [int]$parts[2] + 1
+          $next = "$major.$minor.$patch"
+          Write-Host "Bumping version $($pkg.version) -> $next"
+
+          $pkgJson = Get-Content package.json -Raw
+          $pkgJson = $pkgJson -replace '"version":\s*"[^"]+"', "`"version`": `"$next`""
+          Set-Content -Path package.json -Value $pkgJson -NoNewline
+
+          $cargo = Get-Content src-tauri/Cargo.toml -Raw
+          $cargo = $cargo -replace '(?m)^version = "[^"]+"', "version = `"$next`""
+          Set-Content -Path src-tauri/Cargo.toml -Value $cargo -NoNewline
+
+          $tauri = Get-Content src-tauri/tauri.conf.json -Raw
+          $tauri = $tauri -replace '"version":\s*"[^"]+"', "`"version`": `"$next`""
+          Set-Content -Path src-tauri/tauri.conf.json -Value $tauri -NoNewline
+
+          if (Test-Path src-tauri/Cargo.lock) {
+            $lock = Get-Content src-tauri/Cargo.lock -Raw
+            $lock = [regex]::Replace(
+              $lock,
+              '(name = "local-file-explorer"\r?\n)version = "[^"]+"',
+              ("`${1}version = `"$next`""),
+              1
+            )
+            Set-Content -Path src-tauri/Cargo.lock -Value $lock -NoNewline
+          }
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json src-tauri/Cargo.lock
+          git commit -m "chore: bump version to $next [skip ci]"
+          git tag "v$next"
+          git push origin HEAD --follow-tags
+          echo "version=$next" >> $env:GITHUB_OUTPUT
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
