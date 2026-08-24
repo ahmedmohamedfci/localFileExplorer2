@@ -1,6 +1,6 @@
 [package]
 name = "local-file-explorer"
-version = "2.0.1"
+version = "2.0.2"
 description = "Local File Explorer — media library filter and MPC playlist opener"
 authors = ["you"]
 edition = "2021"
