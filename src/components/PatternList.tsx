@@ -7,7 +7,8 @@ type Props = {
   hint: string;
   entries: PatternEntry[];
   onChange: (entries: PatternEntry[]) => void;
-  defaultOpen?: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 };
 
 export function PatternList({
@@ -15,9 +16,9 @@ export function PatternList({
   hint,
   entries,
   onChange,
-  defaultOpen = true,
+  open,
+  onOpenChange,
 }: Props) {
-  const [open, setOpen] = useState(defaultOpen);
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +49,11 @@ export function PatternList({
 
   return (
     <div className="section">
-      <button type="button" className="section-toggle" onClick={() => setOpen((v) => !v)}>
+      <button
+        type="button"
+        className="section-toggle"
+        onClick={() => onOpenChange(!open)}
+      >
         <span className="chevron">{open ? "▼" : "▶"}</span>
         <strong>{title}</strong>
       </button>

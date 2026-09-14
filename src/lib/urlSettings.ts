@@ -1,6 +1,7 @@
 import {
   DEFAULT_EXTENSIONS,
   defaultSettings,
+  hydrateSettings,
   type AppSettings,
   type PatternEntry,
 } from "./types";
@@ -62,7 +63,7 @@ export function parseSettingsJson(raw: string): AppSettings {
   }
 
   const defaults = defaultSettings();
-  return {
+  return hydrateSettings({
     roots: stringArray(obj.roots, defaults.roots),
     extensions: normalizeExtensions(
       stringArray(obj.extensions, [...DEFAULT_EXTENSIONS]),
@@ -79,7 +80,8 @@ export function parseSettingsJson(raw: string): AppSettings {
     databasePath:
       typeof obj.databasePath === "string" ? obj.databasePath : "",
     tableColumns: normalizeTableColumns(obj.tableColumns),
-  };
+    ui: (obj.ui as AppSettings["ui"]) ?? defaults.ui,
+  });
 }
 
 function hashParam(key: string): string | null {

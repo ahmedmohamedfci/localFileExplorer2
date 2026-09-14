@@ -1,11 +1,11 @@
-import { useState } from "react";
-import type { AppSettings, ScanProgress } from "../lib/types";
+import type { AppSettings, ScanProgress, UiLayout } from "../lib/types";
 import { truncateMiddle } from "../lib/format";
 
 type Props = {
   settings: AppSettings;
   dataDir: string;
   onChange: (settings: AppSettings) => void;
+  onUiChange: (patch: Partial<UiLayout>) => void;
   onClose: () => void;
   onSaveAndScan: () => void;
   onCancelScan: () => void;
@@ -25,6 +25,7 @@ export function SettingsPanel({
   settings,
   dataDir,
   onChange,
+  onUiChange,
   onClose,
   onSaveAndScan,
   onCancelScan,
@@ -38,11 +39,7 @@ export function SettingsPanel({
   statusMessage,
   hostUrl,
 }: Props) {
-  const [scanOpen, setScanOpen] = useState(true);
-  const [rootsOpen, setRootsOpen] = useState(true);
-  const [extOpen, setExtOpen] = useState(false);
-  const [dataOpen, setDataOpen] = useState(false);
-  const [howToOpen, setHowToOpen] = useState(false);
+  const ui = settings.ui;
 
   return (
     <div className="pane settings-stage">
@@ -61,13 +58,13 @@ export function SettingsPanel({
           <button
             type="button"
             className="section-toggle"
-            onClick={() => setScanOpen((v) => !v)}
+            onClick={() => onUiChange({ scanOpen: !ui.scanOpen })}
           >
-            <span className="chevron">{scanOpen ? "▼" : "▶"}</span>
+            <span className="chevron">{ui.scanOpen ? "▼" : "▶"}</span>
             <strong>Scan</strong>
             <span style={{ color: "var(--text-muted)" }}>({progress.phase})</span>
           </button>
-          {scanOpen && (
+          {ui.scanOpen && (
             <div className="section-body">
               <div className="field-row" style={{ flexWrap: "wrap" }}>
                 <button
@@ -113,12 +110,12 @@ export function SettingsPanel({
           <button
             type="button"
             className="section-toggle"
-            onClick={() => setRootsOpen((v) => !v)}
+            onClick={() => onUiChange({ rootsOpen: !ui.rootsOpen })}
           >
-            <span className="chevron">{rootsOpen ? "▼" : "▶"}</span>
+            <span className="chevron">{ui.rootsOpen ? "▼" : "▶"}</span>
             <strong>Roots</strong>
           </button>
-          {rootsOpen && (
+          {ui.rootsOpen && (
             <div className="section-body">
               {settings.roots.length === 0 && (
                 <div className="empty-note">No folders yet</div>
@@ -151,12 +148,12 @@ export function SettingsPanel({
           <button
             type="button"
             className="section-toggle"
-            onClick={() => setExtOpen((v) => !v)}
+            onClick={() => onUiChange({ extOpen: !ui.extOpen })}
           >
-            <span className="chevron">{extOpen ? "▼" : "▶"}</span>
+            <span className="chevron">{ui.extOpen ? "▼" : "▶"}</span>
             <strong>Extensions</strong>
           </button>
-          {extOpen && (
+          {ui.extOpen && (
             <div className="section-body">
               <p className="hint">One per line (e.g. .mp4)</p>
               <textarea
@@ -176,12 +173,12 @@ export function SettingsPanel({
           <button
             type="button"
             className="section-toggle"
-            onClick={() => setDataOpen((v) => !v)}
+            onClick={() => onUiChange({ dataOpen: !ui.dataOpen })}
           >
-            <span className="chevron">{dataOpen ? "▼" : "▶"}</span>
+            <span className="chevron">{ui.dataOpen ? "▼" : "▶"}</span>
             <strong>Data &amp; settings</strong>
           </button>
-          {dataOpen && (
+          {ui.dataOpen && (
             <div className="section-body">
               {hostUrl && (
                 <p className="hint">
@@ -235,12 +232,12 @@ export function SettingsPanel({
           <button
             type="button"
             className="section-toggle"
-            onClick={() => setHowToOpen((v) => !v)}
+            onClick={() => onUiChange({ howToOpen: !ui.howToOpen })}
           >
-            <span className="chevron">{howToOpen ? "▼" : "▶"}</span>
+            <span className="chevron">{ui.howToOpen ? "▼" : "▶"}</span>
             <strong>How to run &amp; data layout</strong>
           </button>
-          {howToOpen && (
+          {ui.howToOpen && (
             <div className="section-body">
               <p className="hint">
                 <strong>Desktop:</strong> run the EXE (or a shortcut). Default layout

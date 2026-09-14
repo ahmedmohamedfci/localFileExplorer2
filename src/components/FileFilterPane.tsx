@@ -1,4 +1,4 @@
-import type { AppSettings, PatternEntry } from "../lib/types";
+import type { AppSettings, PatternEntry, UiLayout } from "../lib/types";
 import { SORT_FIELDS } from "../lib/types";
 import { PatternList } from "./PatternList";
 
@@ -10,6 +10,7 @@ type Props = {
   onApply: () => void;
   onToggleSettings: () => void;
   onCollapse: () => void;
+  onUiChange: (patch: Partial<UiLayout>) => void;
   settingsOpen: boolean;
   applying: boolean;
 };
@@ -22,6 +23,7 @@ export function FileFilterPane({
   onApply,
   onToggleSettings,
   onCollapse,
+  onUiChange,
   settingsOpen,
   applying,
 }: Props) {
@@ -55,14 +57,16 @@ export function FileFilterPane({
           hint="OR on full path — empty = all. Use + for AND (any order)."
           entries={settings.includeRegexes}
           onChange={onIncludeChange}
-          defaultOpen
+          open={settings.ui.includePatternsOpen}
+          onOpenChange={(open) => onUiChange({ includePatternsOpen: open })}
         />
         <PatternList
           title="Ignore patterns"
           hint="OR on full path — wins over include. Use + for AND (any order)."
           entries={settings.ignoreRegexes}
           onChange={onIgnoreChange}
-          defaultOpen
+          open={settings.ui.ignorePatternsOpen}
+          onOpenChange={(open) => onUiChange({ ignorePatternsOpen: open })}
         />
 
         <div className="section">
@@ -116,6 +120,8 @@ export function FileFilterPane({
         >
           {applying ? "Applying…" : "Apply filter"}
         </button>
+        {/* Extra hit-area / scroll padding when the window is short */}
+        <div style={{ height: 72 }} aria-hidden />
       </div>
     </aside>
   );

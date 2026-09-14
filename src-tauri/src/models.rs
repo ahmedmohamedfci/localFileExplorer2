@@ -43,6 +43,49 @@ pub struct TableColumnConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct UiLayout {
+    #[serde(default = "default_true")]
+    pub left_pane_open: bool,
+    #[serde(default)]
+    pub settings_open: bool,
+    #[serde(default = "default_true")]
+    pub include_patterns_open: bool,
+    #[serde(default = "default_true")]
+    pub ignore_patterns_open: bool,
+    #[serde(default = "default_true")]
+    pub scan_open: bool,
+    #[serde(default = "default_true")]
+    pub roots_open: bool,
+    #[serde(default)]
+    pub ext_open: bool,
+    #[serde(default)]
+    pub data_open: bool,
+    #[serde(default)]
+    pub how_to_open: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for UiLayout {
+    fn default() -> Self {
+        Self {
+            left_pane_open: true,
+            settings_open: false,
+            include_patterns_open: true,
+            ignore_patterns_open: true,
+            scan_open: true,
+            roots_open: true,
+            ext_open: false,
+            data_open: false,
+            how_to_open: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     pub roots: Vec<String>,
     pub extensions: Vec<String>,
@@ -58,6 +101,9 @@ pub struct AppSettings {
     pub database_path: String,
     #[serde(default = "default_table_columns")]
     pub table_columns: Vec<TableColumnConfig>,
+    /// Pane / section open state.
+    #[serde(default)]
+    pub ui: UiLayout,
 }
 
 impl Default for AppSettings {
@@ -73,6 +119,7 @@ impl Default for AppSettings {
             deep_scan: false,
             database_path: String::new(),
             table_columns: default_table_columns(),
+            ui: UiLayout::default(),
         }
     }
 }

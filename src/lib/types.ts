@@ -9,6 +9,19 @@ export type PatternEntry = {
   enabled: boolean;
 };
 
+/** Open/collapsed layout remembered across launches. */
+export type UiLayout = {
+  leftPaneOpen: boolean;
+  settingsOpen: boolean;
+  includePatternsOpen: boolean;
+  ignorePatternsOpen: boolean;
+  scanOpen: boolean;
+  rootsOpen: boolean;
+  extOpen: boolean;
+  dataOpen: boolean;
+  howToOpen: boolean;
+};
+
 export type AppSettings = {
   roots: string[];
   extensions: string[];
@@ -22,6 +35,8 @@ export type AppSettings = {
   databasePath: string;
   /** Results table columns (order, width, visibility). */
   tableColumns: TableColumnConfig[];
+  /** Pane / section open state. */
+  ui: UiLayout;
 };
 
 export type FileRecord = {
@@ -100,6 +115,7 @@ export const DEFAULT_EXTENSIONS = [
 
 export const SORT_FIELDS = [
   { value: "path", label: "Path" },
+  { value: "name", label: "Name" },
   { value: "ext", label: "Extension" },
   { value: "sizeBytes", label: "Size" },
   { value: "durationMs", label: "Duration" },
@@ -109,6 +125,20 @@ export const SORT_FIELDS = [
   { value: "indexedAt", label: "Indexed" },
   { value: "random", label: "Random" },
 ] as const;
+
+export function defaultUiLayout(): UiLayout {
+  return {
+    leftPaneOpen: true,
+    settingsOpen: false,
+    includePatternsOpen: true,
+    ignorePatternsOpen: true,
+    scanOpen: true,
+    rootsOpen: true,
+    extOpen: false,
+    dataOpen: false,
+    howToOpen: false,
+  };
+}
 
 export function defaultSettings(): AppSettings {
   return {
@@ -122,6 +152,30 @@ export function defaultSettings(): AppSettings {
     deepScan: false,
     databasePath: "",
     tableColumns: DEFAULT_TABLE_COLUMNS.map((c) => ({ ...c })),
+    ui: defaultUiLayout(),
+  };
+}
+
+function hydrateUi(raw: unknown): UiLayout {
+  const defaults = defaultUiLayout();
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return defaults;
+  const o = raw as Record<string, unknown>;
+  return {
+    leftPaneOpen: typeof o.leftPaneOpen === "boolean" ? o.leftPaneOpen : defaults.leftPaneOpen,
+    settingsOpen: typeof o.settingsOpen === "boolean" ? o.settingsOpen : defaults.settingsOpen,
+    includePatternsOpen:
+      typeof o.includePatternsOpen === "boolean"
+        ? o.includePatternsOpen
+        : defaults.includePatternsOpen,
+    ignorePatternsOpen:
+      typeof o.ignorePatternsOpen === "boolean"
+        ? o.ignorePatternsOpen
+        : defaults.ignorePatternsOpen,
+    scanOpen: typeof o.scanOpen === "boolean" ? o.scanOpen : defaults.scanOpen,
+    rootsOpen: typeof o.rootsOpen === "boolean" ? o.rootsOpen : defaults.rootsOpen,
+    extOpen: typeof o.extOpen === "boolean" ? o.extOpen : defaults.extOpen,
+    dataOpen: typeof o.dataOpen === "boolean" ? o.dataOpen : defaults.dataOpen,
+    howToOpen: typeof o.howToOpen === "boolean" ? o.howToOpen : defaults.howToOpen,
   };
 }
 
@@ -131,5 +185,6 @@ export function hydrateSettings(raw: AppSettings): AppSettings {
     ...defaultSettings(),
     ...raw,
     tableColumns: normalizeTableColumns(raw.tableColumns),
+    ui: hydrateUi(raw.ui),
   };
 }

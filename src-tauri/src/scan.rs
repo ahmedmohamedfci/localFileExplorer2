@@ -450,29 +450,57 @@ fn clause_matches(terms: &[Regex], path: &str) -> bool {
 
 fn compare_field(a: &FileRecord, b: &FileRecord, field: &str) -> std::cmp::Ordering {
     match field {
-        "ext" => a.ext.to_lowercase().cmp(&b.ext.to_lowercase()).then_with(|| {
-            a.path.to_lowercase().cmp(&b.path.to_lowercase())
-        }),
-        "sizeBytes" | "size" => a.size_bytes.cmp(&b.size_bytes).then_with(|| {
-            a.path.to_lowercase().cmp(&b.path.to_lowercase())
-        }),
-        "atime" => cmp_f64(a.atime, b.atime).then_with(|| {
-            a.path.to_lowercase().cmp(&b.path.to_lowercase())
-        }),
-        "mtime" => cmp_f64(a.mtime, b.mtime).then_with(|| {
-            a.path.to_lowercase().cmp(&b.path.to_lowercase())
-        }),
-        "birthtime" => cmp_f64(a.birthtime, b.birthtime).then_with(|| {
-            a.path.to_lowercase().cmp(&b.path.to_lowercase())
-        }),
-        "durationMs" | "duration" => cmp_opt_f64(a.duration_ms, b.duration_ms).then_with(|| {
-            a.path.to_lowercase().cmp(&b.path.to_lowercase())
-        }),
-        "indexedAt" => cmp_f64(a.indexed_at, b.indexed_at).then_with(|| {
-            a.path.to_lowercase().cmp(&b.path.to_lowercase())
-        }),
-        _ => a.path.to_lowercase().cmp(&b.path.to_lowercase()),
+        "name" => file_name_of(&a.path)
+            .cmp(&file_name_of(&b.path))
+            .then_with(|| compare_paths(&a.path, &b.path)),
+        "ext" => a
+            .ext
+            .to_lowercase()
+            .cmp(&b.ext.to_lowercase())
+            .then_with(|| compare_paths(&a.path, &b.path)),
+        "sizeBytes" | "size" => a
+            .size_bytes
+            .cmp(&b.size_bytes)
+            .then_with(|| compare_paths(&a.path, &b.path)),
+        "atime" => cmp_f64(a.atime, b.atime).then_with(|| compare_paths(&a.path, &b.path)),
+        "mtime" => cmp_f64(a.mtime, b.mtime).then_with(|| compare_paths(&a.path, &b.path)),
+        "birthtime" => {
+            cmp_f64(a.birthtime, b.birthtime).then_with(|| compare_paths(&a.path, &b.path))
+        }
+        "durationMs" | "duration" => {
+            cmp_opt_f64(a.duration_ms, b.duration_ms).then_with(|| compare_paths(&a.path, &b.path))
+        }
+        "indexedAt" => {
+            cmp_f64(a.indexed_at, b.indexed_at).then_with(|| compare_paths(&a.path, &b.path))
+        }
+        _ => compare_paths(&a.path, &b.path),
     }
+}
+
+/// Hierarchical path compare: segment-by-segment, case-insensitive, \ and / treated equal.
+fn compare_paths(a: &str, b: &str) -> std::cmp::Ordering {
+    let a_parts = path_segments(a);
+    let b_parts = path_segments(b);
+    for (ap, bp) in a_parts.iter().zip(b_parts.iter()) {
+        match ap.cmp(bp) {
+            std::cmp::Ordering::Equal => {}
+            other => return other,
+        }
+    }
+    a_parts.len().cmp(&b_parts.len())
+}
+
+fn path_segments(path: &str) -> Vec<String> {
+    path.replace('\\', "/")
+        .to_lowercase()
+        .split('/')
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn file_name_of(path: &str) -> String {
+    path_segments(path).into_iter().next_back().unwrap_or_default()
 }
 
 fn cmp_f64(a: f64, b: f64) -> std::cmp::Ordering {

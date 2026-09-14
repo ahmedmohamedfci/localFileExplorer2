@@ -19,6 +19,7 @@ import {
   type PatternEntry,
   type ResultRow,
   type ScanProgress,
+  type UiLayout,
 } from "./lib/types";
 import { type TableColumnConfig } from "./lib/tableColumns";
 import { readSettingsFromHash } from "./lib/urlSettings";
@@ -52,9 +53,18 @@ export default function App() {
   const [scanning, setScanning] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [queryError, setQueryError] = useState<string | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [leftPaneOpen, setLeftPaneOpen] = useState(true);
   const [hostUrl, setHostUrl] = useState<string | null>(null);
+
+  const leftPaneOpen = settings.ui.leftPaneOpen;
+  const settingsOpen = settings.ui.settingsOpen;
+
+  function patchUi(patch: Partial<UiLayout>) {
+    setSettings((prev) => {
+      const next = { ...prev, ui: { ...prev.ui, ...patch } };
+      void api.saveSettings(next);
+      return next;
+    });
+  }
 
   async function bootBrowserSession(next: AppSettings) {
     try {
@@ -206,7 +216,11 @@ export default function App() {
         return;
       }
 
-      const saved = await api.saveSettings(nextSettings);
+      const toSave = {
+        ...nextSettings,
+        ui: { ...nextSettings.ui, settingsOpen: false },
+      };
+      const saved = await api.saveSettings(toSave);
       setSettings(hydrateSettings(saved));
       const result = await api.queryFiles({
         includeClauses: compiledInclude.clauses,
@@ -219,7 +233,6 @@ export default function App() {
       setSelectedId(null);
       setCatalogCount(await api.getCatalogCount());
       setStatusMessage("Settings saved");
-      setSettingsOpen(false);
     } catch (e) {
       setQueryError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -405,15 +418,16 @@ export default function App() {
             setSettings({ ...settings, ignoreRegexes })
           }
           onApply={() => applyFilter()}
-          onToggleSettings={() => setSettingsOpen((v) => !v)}
-          onCollapse={() => setLeftPaneOpen(false)}
+          onToggleSettings={() => patchUi({ settingsOpen: !settingsOpen })}
+          onCollapse={() => patchUi({ leftPaneOpen: false })}
+          onUiChange={patchUi}
         />
       ) : (
         <button
           type="button"
           className="left-expand-tab"
           title="Show filters"
-          onClick={() => setLeftPaneOpen(true)}
+          onClick={() => patchUi({ leftPaneOpen: true })}
         >
           ▶
         </button>
@@ -425,7 +439,8 @@ export default function App() {
             settings={settings}
             dataDir={dataDir}
             onChange={setSettings}
-            onClose={() => setSettingsOpen(false)}
+            onUiChange={patchUi}
+            onClose={() => patchUi({ settingsOpen: false })}
             onSaveAndScan={saveAndScan}
             onCancelScan={() => void api.cancelScan()}
             onAddRoot={() => void addRoot()}
@@ -452,7 +467,7 @@ export default function App() {
                     <button
                       type="button"
                       className="btn"
-                      onClick={() => setLeftPaneOpen(true)}
+                      onClick={() => patchUi({ leftPaneOpen: true })}
                       title="Show filters"
                     >
                       Filters
@@ -460,7 +475,7 @@ export default function App() {
                     <button
                       type="button"
                       className="btn"
-                      onClick={() => setSettingsOpen(true)}
+                      onClick={() => patchUi({ settingsOpen: true })}
                     >
                       Settings
                     </button>
