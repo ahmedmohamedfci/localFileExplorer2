@@ -80,7 +80,24 @@ pub fn query_files(request: QueryRequest) -> AppResult<Vec<FileRecord>> {
         &request.ignore_clauses,
         &request.sort_field,
         &request.sort_dir,
+        &request.include_tags,
+        &request.exclude_tags,
     )
+}
+
+#[tauri::command]
+pub fn add_file_tag(path: String, tag: String) -> AppResult<Vec<String>> {
+    CatalogDb::open()?.add_file_tag(&path, &tag)
+}
+
+#[tauri::command]
+pub fn remove_file_tag(path: String, tag: String) -> AppResult<Vec<String>> {
+    CatalogDb::open()?.remove_file_tag(&path, &tag)
+}
+
+#[tauri::command]
+pub fn set_file_tags(path: String, tags: Vec<String>) -> AppResult<Vec<String>> {
+    CatalogDb::open()?.set_file_tags(&path, &tags)
 }
 
 #[tauri::command]

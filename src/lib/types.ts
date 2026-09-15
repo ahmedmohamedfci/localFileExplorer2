@@ -14,6 +14,8 @@ export type AppSettings = {
   deepScan: boolean;
   /** Catalog SQLite path (absolute, or relative to data dir). */
   databasePath: string;
+  /** Feature flag: show tag column and tag editing in the file list. */
+  enableTags: boolean;
 };
 
 export type FileRecord = {
@@ -25,6 +27,8 @@ export type FileRecord = {
   birthtime: number;
   durationMs: number | null;
   indexedAt: number;
+  /** User-assigned tags (case-insensitive uniqueness). */
+  tags: string[];
 };
 
 export type ScanProgress = {
@@ -112,5 +116,6 @@ export function defaultSettings(): AppSettings {
     splitBySearch: false,
     deepScan: false,
     databasePath: "",
+    enableTags: false,
   };
 }
