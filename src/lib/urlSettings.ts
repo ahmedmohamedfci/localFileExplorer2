@@ -77,6 +77,7 @@ export function parseSettingsJson(raw: string): AppSettings {
     deepScan: Boolean(obj.deepScan),
     databasePath:
       typeof obj.databasePath === "string" ? obj.databasePath : "",
+    enableTags: Boolean(obj.enableTags),
   };
 }
 

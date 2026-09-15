@@ -235,6 +235,7 @@ pub fn run_scan(
                     birthtime,
                     duration_ms,
                     indexed_at: now_secs(),
+                    tags: Vec::new(),
                 };
                 db.upsert_file(&record)?;
                 files += 1;
@@ -369,9 +370,21 @@ pub fn filter_and_sort(
     ignore_clauses: &[crate::models::PatternClause],
     sort_field: &str,
     sort_dir: &str,
+    include_tags: &[String],
+    exclude_tags: &[String],
 ) -> AppResult<Vec<FileRecord>> {
     let includes = compile_clauses(include_clauses)?;
     let ignores = compile_clauses(ignore_clauses)?;
+    let include_tag_keys: Vec<String> = include_tags
+        .iter()
+        .map(|t| t.trim().to_lowercase())
+        .filter(|t| !t.is_empty())
+        .collect();
+    let exclude_tag_keys: Vec<String> = exclude_tags
+        .iter()
+        .map(|t| t.trim().to_lowercase())
+        .filter(|t| !t.is_empty())
+        .collect();
 
     let mut out: Vec<FileRecord> = files
         .into_iter()
@@ -382,7 +395,22 @@ pub fn filter_and_sort(
                 return false;
             }
             let ignored = ignores.iter().any(|c| clause_matches(c, path));
-            !ignored
+            if ignored {
+                return false;
+            }
+            if !include_tag_keys.is_empty() {
+                let file_keys: Vec<String> = f.tags.iter().map(|t| t.to_lowercase()).collect();
+                if !include_tag_keys.iter().all(|k| file_keys.iter().any(|t| t == k)) {
+                    return false;
+                }
+            }
+            if !exclude_tag_keys.is_empty() {
+                let file_keys: Vec<String> = f.tags.iter().map(|t| t.to_lowercase()).collect();
+                if exclude_tag_keys.iter().any(|k| file_keys.iter().any(|t| t == k)) {
+                    return false;
+                }
+            }
+            true
         })
         .collect();
 

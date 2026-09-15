@@ -1,9 +1,10 @@
+use std::collections::HashMap;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::{params, Connection, OptionalExtension};
 
-use crate::models::{AppResult, FileRecord};
+use crate::models::{AppError, AppResult, FileRecord};
 use crate::paths::db_path;
 
 pub struct CatalogDb {
@@ -66,11 +67,20 @@ impl CatalogDb {
               indexedAt REAL NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS file_tags (
+              file_path TEXT NOT NULL,
+              tag TEXT NOT NULL,
+              normalized_tag TEXT NOT NULL,
+              PRIMARY KEY (file_path, normalized_tag)
+            );
+
             CREATE INDEX IF NOT EXISTS idx_files_ext ON files(ext);
             CREATE INDEX IF NOT EXISTS idx_files_size ON files(sizeBytes);
             CREATE INDEX IF NOT EXISTS idx_files_mtime ON files(mtime);
             CREATE INDEX IF NOT EXISTS idx_files_duration ON files(durationMs);
             CREATE INDEX IF NOT EXISTS idx_folders_parent ON folders(parentPath);
+            CREATE INDEX IF NOT EXISTS idx_file_tags_normalized ON file_tags(normalized_tag);
+            CREATE INDEX IF NOT EXISTS idx_file_tags_path ON file_tags(file_path);
             ",
         )?;
 
@@ -159,12 +169,18 @@ impl CatalogDb {
                 map_file_row,
             )
             .optional()?;
-        Ok(row)
+        Ok(match row {
+            Some(mut file) => {
+                file.tags = self.tags_for_file(&file.path)?;
+                Some(file)
+            }
+            None => None,
+        })
     }
 
     /// Files whose path is directly under `folder` (no deeper children).
     pub fn files_in_folder(&self, folder: &str) -> AppResult<Vec<FileRecord>> {
-        let mut base = folder.trim_end_matches(['\\', '/']).to_string();
+        let base = folder.trim_end_matches(['\\', '/']).to_string();
         let prefix_bs = format!("{base}\\");
         let prefix_slash = format!("{base}/");
 
@@ -179,7 +195,7 @@ impl CatalogDb {
 
         let mut out = Vec::new();
         for row in rows {
-            let file = row?;
+            let mut file = row?;
             let rest = if file.path.starts_with(&prefix_bs) {
                 &file.path[prefix_bs.len()..]
             } else if file.path.starts_with(&prefix_slash) {
@@ -188,6 +204,7 @@ impl CatalogDb {
                 continue;
             };
             if !rest.is_empty() && !rest.contains('\\') && !rest.contains('/') {
+                file.tags = self.tags_for_file(&file.path)?;
                 out.push(file);
             }
         }
@@ -195,6 +212,8 @@ impl CatalogDb {
     }
 
     pub fn delete_file(&self, path: &str) -> AppResult<()> {
+        self.conn
+            .execute("DELETE FROM file_tags WHERE file_path = ?1", params![path])?;
         self.conn
             .execute("DELETE FROM files WHERE path = ?1", params![path])?;
         Ok(())
@@ -230,6 +249,7 @@ impl CatalogDb {
         if roots.is_empty() {
             let deleted = self.conn.execute("DELETE FROM files", [])? as u64;
             let _ = self.conn.execute("DELETE FROM folders", [])?;
+            let _ = self.conn.execute("DELETE FROM file_tags", [])?;
             return Ok(deleted);
         }
 
@@ -243,6 +263,9 @@ impl CatalogDb {
         for path in paths {
             let under_root = roots.iter().any(|root| path_under_root(&path, root));
             if !under_root || !Path::new(&path).exists() {
+                let _ = self
+                    .conn
+                    .execute("DELETE FROM file_tags WHERE file_path = ?1", params![path])?;
                 deleted += self
                     .conn
                     .execute("DELETE FROM files WHERE path = ?1", params![path])?
@@ -264,19 +287,99 @@ impl CatalogDb {
             }
         }
 
+        // Orphan cleanup (tags for paths no longer in files)
+        let _ = self.conn.execute(
+            "DELETE FROM file_tags WHERE file_path NOT IN (SELECT path FROM files)",
+            [],
+        )?;
+
         Ok(deleted)
     }
 
     pub fn query_all(&self) -> AppResult<Vec<FileRecord>> {
+        let tags_by_path = self.all_tags_by_path()?;
         let mut stmt = self.conn.prepare(
             "SELECT path, ext, sizeBytes, atime, mtime, birthtime, durationMs, indexedAt FROM files",
         )?;
         let rows = stmt.query_map([], map_file_row)?;
         let mut out = Vec::new();
         for row in rows {
+            let mut file = row?;
+            file.tags = tags_by_path.get(&file.path).cloned().unwrap_or_default();
+            out.push(file);
+        }
+        Ok(out)
+    }
+
+    pub fn tags_for_file(&self, path: &str) -> AppResult<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT tag FROM file_tags WHERE file_path = ?1 ORDER BY normalized_tag ASC",
+        )?;
+        let rows = stmt.query_map(params![path], |r| r.get::<_, String>(0))?;
+        let mut out = Vec::new();
+        for row in rows {
             out.push(row?);
         }
         Ok(out)
+    }
+
+    fn all_tags_by_path(&self) -> AppResult<HashMap<String, Vec<String>>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT file_path, tag FROM file_tags ORDER BY file_path ASC, normalized_tag ASC",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        })?;
+        let mut map: HashMap<String, Vec<String>> = HashMap::new();
+        for row in rows {
+            let (path, tag) = row?;
+            map.entry(path).or_default().push(tag);
+        }
+        Ok(map)
+    }
+
+    /// Add a tag to a file. Case-insensitive; keeps the first display form.
+    pub fn add_file_tag(&self, path: &str, tag: &str) -> AppResult<Vec<String>> {
+        let display = normalize_tag_display(tag)?;
+        let key = display.to_lowercase();
+        self.conn.execute(
+            "INSERT INTO file_tags(file_path, tag, normalized_tag)
+             VALUES(?1, ?2, ?3)
+             ON CONFLICT(file_path, normalized_tag) DO NOTHING",
+            params![path, display, key],
+        )?;
+        self.tags_for_file(path)
+    }
+
+    pub fn remove_file_tag(&self, path: &str, tag: &str) -> AppResult<Vec<String>> {
+        let key = tag.trim().to_lowercase();
+        if key.is_empty() {
+            return Err(AppError::Message("Tag cannot be empty".into()));
+        }
+        self.conn.execute(
+            "DELETE FROM file_tags WHERE file_path = ?1 AND normalized_tag = ?2",
+            params![path, key],
+        )?;
+        self.tags_for_file(path)
+    }
+
+    pub fn set_file_tags(&self, path: &str, tags: &[String]) -> AppResult<Vec<String>> {
+        self.conn
+            .execute("DELETE FROM file_tags WHERE file_path = ?1", params![path])?;
+        for tag in tags {
+            let display = match normalize_tag_display(tag) {
+                Ok(d) => d,
+                Err(_) => continue,
+            };
+            let key = display.to_lowercase();
+            self.conn.execute(
+                "INSERT INTO file_tags(file_path, tag, normalized_tag)
+                 VALUES(?1, ?2, ?3)
+                 ON CONFLICT(file_path, normalized_tag) DO NOTHING",
+                params![path, display, key],
+            )?;
+        }
+        self.tags_for_file(path)
     }
 
     pub fn begin_immediate(&self) -> AppResult<()> {
@@ -295,6 +398,14 @@ impl CatalogDb {
     }
 }
 
+fn normalize_tag_display(tag: &str) -> AppResult<String> {
+    let display = tag.trim().to_string();
+    if display.is_empty() {
+        return Err(AppError::Message("Tag cannot be empty".into()));
+    }
+    Ok(display)
+}
+
 fn map_file_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<FileRecord> {
     Ok(FileRecord {
         path: r.get(0)?,
@@ -305,6 +416,7 @@ fn map_file_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<FileRecord> {
         birthtime: r.get(5)?,
         duration_ms: r.get(6)?,
         indexed_at: r.get(7)?,
+        tags: Vec::new(),
     })
 }
 

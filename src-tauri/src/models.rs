@@ -48,6 +48,9 @@ pub struct AppSettings {
     /// Empty = `{dataDir}/file-index.db`.
     #[serde(default)]
     pub database_path: String,
+    /// Feature flag: show tag column and tag editing in the file list.
+    #[serde(default)]
+    pub enable_tags: bool,
 }
 
 impl Default for AppSettings {
@@ -62,6 +65,7 @@ impl Default for AppSettings {
             split_by_search: false,
             deep_scan: false,
             database_path: String::new(),
+            enable_tags: false,
         }
     }
 }
@@ -87,6 +91,9 @@ pub struct FileRecord {
     pub birthtime: f64,
     pub duration_ms: Option<f64>,
     pub indexed_at: f64,
+    /// User-assigned tags (display text). Empty when not loaded.
+    #[serde(default)]
+    pub tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -114,6 +121,12 @@ pub struct QueryRequest {
     pub ignore_clauses: Vec<PatternClause>,
     pub sort_field: String,
     pub sort_dir: String,
+    /// File must have all of these tags (case-insensitive). Empty = no filter.
+    #[serde(default)]
+    pub include_tags: Vec<String>,
+    /// File must have none of these tags (case-insensitive). Empty = no filter.
+    #[serde(default)]
+    pub exclude_tags: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

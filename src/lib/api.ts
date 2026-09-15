@@ -39,6 +39,8 @@ export function queryFiles(args: {
   ignoreClauses: { terms: string[] }[];
   sortField: string;
   sortDir: string;
+  includeTags?: string[];
+  excludeTags?: string[];
 }): Promise<FileRecord[]> {
   if (!isTauri()) return Promise.resolve([]);
   return invoke("query_files", {
@@ -47,8 +49,25 @@ export function queryFiles(args: {
       ignoreClauses: args.ignoreClauses,
       sortField: args.sortField,
       sortDir: args.sortDir,
+      includeTags: args.includeTags ?? [],
+      excludeTags: args.excludeTags ?? [],
     },
   });
+}
+
+export function addFileTag(path: string, tag: string): Promise<string[]> {
+  if (!isTauri()) return requireTauri();
+  return invoke("add_file_tag", { path, tag });
+}
+
+export function removeFileTag(path: string, tag: string): Promise<string[]> {
+  if (!isTauri()) return requireTauri();
+  return invoke("remove_file_tag", { path, tag });
+}
+
+export function setFileTags(path: string, tags: string[]): Promise<string[]> {
+  if (!isTauri()) return requireTauri();
+  return invoke("set_file_tags", { path, tags });
 }
 
 export function startScan(settings: AppSettings): Promise<void> {

@@ -151,7 +151,7 @@ export default function App() {
         sortField: saved.sortField,
         sortDir: saved.sortDir,
       });
-      setFiles(result);
+      setFiles(result.map((f) => ({ ...f, tags: f.tags ?? [] })));
       setHasApplied(true);
       setSelectedId(null);
       setCatalogCount(await api.getCatalogCount());
@@ -245,6 +245,33 @@ export default function App() {
     if (settings[key].some((e) => e.pattern === pattern)) return;
     const entry: PatternEntry = { pattern, enabled: true };
     setSettings({ ...settings, [key]: [...settings[key], entry] });
+    setTestPattern("");
+  }
+
+  function patchFileTags(path: string, tags: string[]) {
+    setFiles((prev) =>
+      prev.map((f) => (f.path === path ? { ...f, tags } : f)),
+    );
+  }
+
+  async function handleAddTag(path: string, tag: string) {
+    try {
+      const tags = await api.addFileTag(path, tag);
+      patchFileTags(path, tags);
+      setQueryError(null);
+    } catch (e) {
+      setQueryError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function handleRemoveTag(path: string, tag: string) {
+    try {
+      const tags = await api.removeFileTag(path, tag);
+      patchFileTags(path, tags);
+      setQueryError(null);
+    } catch (e) {
+      setQueryError(e instanceof Error ? e.message : String(e));
+    }
   }
 
   function emptyMessage(): string {
@@ -407,6 +434,7 @@ export default function App() {
               selectedId={selectedId}
               sortField={settings.sortField}
               sortDir={settings.sortDir}
+              enableTags={settings.enableTags}
               emptyMessage={emptyMessage()}
               onSort={onTableSort}
               onSelect={(row) => setSelectedId(row.id)}
@@ -420,6 +448,12 @@ export default function App() {
                   else next.add(groupKey);
                   return next;
                 });
+              }}
+              onAddTag={(path, tag) => {
+                void handleAddTag(path, tag);
+              }}
+              onRemoveTag={(path, tag) => {
+                void handleRemoveTag(path, tag);
               }}
             />
           </section>

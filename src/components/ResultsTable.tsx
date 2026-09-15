@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { ResultRow } from "../lib/types";
 import { formatDuration, formatSize, formatTimestamp } from "../lib/format";
@@ -15,14 +15,17 @@ type Props = {
   selectedId: string | null;
   sortField: string;
   sortDir: "asc" | "desc";
+  enableTags?: boolean;
   onSort: (field: TableSortField) => void;
   onSelect: (row: ResultRow) => void;
   onOpenFile: (path: string) => void;
   onToggleGroup: (groupKey: string) => void;
+  onAddTag?: (path: string, tag: string) => void;
+  onRemoveTag?: (path: string, tag: string) => void;
   emptyMessage: string;
 };
 
-const COLUMNS: { field: TableSortField | null; label: string }[] = [
+const BASE_COLUMNS: { field: TableSortField | null; label: string }[] = [
   { field: null, label: "#" },
   { field: "path", label: "Path" },
   { field: "ext", label: "Ext" },
@@ -36,26 +39,39 @@ export function ResultsTable({
   selectedId,
   sortField,
   sortDir,
+  enableTags = false,
   onSort,
   onSelect,
   onOpenFile,
   onToggleGroup,
+  onAddTag,
+  onRemoveTag,
   emptyMessage,
 }: Props) {
   const parentRef = useRef<HTMLDivElement>(null);
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 32,
+    estimateSize: () => (enableTags ? 36 : 32),
     overscan: 12,
   });
 
+  const columns = enableTags
+    ? [
+        ...BASE_COLUMNS.slice(0, 2),
+        { field: null, label: "Tags" },
+        ...BASE_COLUMNS.slice(2),
+      ]
+    : BASE_COLUMNS;
+
+  const emptyCells = enableTags ? 5 : 4;
+
   return (
-    <div className="table-wrap">
+    <div className={`table-wrap ${enableTags ? "with-tags" : ""}`}>
       <div className="table-head">
-        {COLUMNS.map((col) => {
+        {columns.map((col, i) => {
           if (!col.field) {
-            return <div key={col.label}>{col.label}</div>;
+            return <div key={`${col.label}-${i}`}>{col.label}</div>;
           }
           const active = sortField === col.field;
           const arrow = active ? (sortDir === "asc" ? " ▲" : " ▼") : "";
@@ -108,10 +124,10 @@ export function ResultsTable({
                     <div className="path">
                       {row.label} ({row.count})
                     </div>
-                    <div />
-                    <div />
-                    <div />
-                    <div />
+                    {enableTags && <div />}
+                    {Array.from({ length: emptyCells }, (_, i) => (
+                      <div key={i} />
+                    ))}
                   </div>
                 );
               }
@@ -138,10 +154,10 @@ export function ResultsTable({
                       {row.toggle === "collapse" ? "▼" : row.playlistIndex}
                     </div>
                     <div className="path">{row.label}</div>
-                    <div />
-                    <div />
-                    <div />
-                    <div />
+                    {enableTags && <div />}
+                    {Array.from({ length: emptyCells }, (_, i) => (
+                      <div key={i} />
+                    ))}
                   </div>
                 );
               }
@@ -162,6 +178,14 @@ export function ResultsTable({
                 >
                   <div className="num">{row.playlistIndex}</div>
                   <div className="path">{row.file.path}</div>
+                  {enableTags && (
+                    <TagsCell
+                      path={row.file.path}
+                      tags={row.file.tags ?? []}
+                      onAddTag={onAddTag}
+                      onRemoveTag={onRemoveTag}
+                    />
+                  )}
                   <div className="num">{row.file.ext}</div>
                   <div className="num">{formatSize(row.file.sizeBytes)}</div>
                   <div className="num">{formatDuration(row.file.durationMs)}</div>
@@ -172,6 +196,77 @@ export function ResultsTable({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function TagsCell({
+  path,
+  tags,
+  onAddTag,
+  onRemoveTag,
+}: {
+  path: string;
+  tags: string[];
+  onAddTag?: (path: string, tag: string) => void;
+  onRemoveTag?: (path: string, tag: string) => void;
+}) {
+  const [draft, setDraft] = useState("");
+
+  function stop(e: MouseEvent | KeyboardEvent) {
+    e.stopPropagation();
+  }
+
+  function submit() {
+    const tag = draft.trim();
+    if (!tag || !onAddTag) return;
+    onAddTag(path, tag);
+    setDraft("");
+  }
+
+  return (
+    <div className="tags-cell" onClick={stop} onDoubleClick={stop}>
+      <div className="tag-list">
+        {tags.map((tag) => (
+          <span key={tag.toLowerCase()} className="tag-chip" title={tag}>
+            <span className="tag-label">{tag}</span>
+            {onRemoveTag && (
+              <button
+                type="button"
+                className="tag-remove"
+                title={`Remove ${tag}`}
+                onClick={(e) => {
+                  stop(e);
+                  onRemoveTag(path, tag);
+                }}
+              >
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+      </div>
+      {onAddTag && (
+        <input
+          className="tag-input"
+          value={draft}
+          placeholder="+"
+          title="Add tag"
+          onChange={(e) => setDraft(e.target.value)}
+          onClick={stop}
+          onDoubleClick={stop}
+          onKeyDown={(e) => {
+            stop(e);
+            if (e.key === "Enter") {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          onBlur={() => {
+            if (draft.trim()) submit();
+          }}
+        />
+      )}
     </div>
   );
 }

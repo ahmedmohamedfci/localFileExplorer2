@@ -85,6 +85,16 @@ export function SettingsPanel({
                   />
                   Deep scan (catch renames)
                 </label>
+                <label className="inline">
+                  <input
+                    type="checkbox"
+                    checked={settings.enableTags}
+                    onChange={(e) =>
+                      onChange({ ...settings, enableTags: e.target.checked })
+                    }
+                  />
+                  Enable tags
+                </label>
                 {scanning && (
                   <button type="button" className="btn" onClick={onCancelScan}>
                     Cancel scan

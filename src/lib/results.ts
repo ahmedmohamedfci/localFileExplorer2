@@ -28,19 +28,10 @@ export function buildDisplayRows(args: {
     ? []
     : files.filter((f) => pathMatchesUserPattern(f.path, testTrim));
 
-  // Live test hides delimiter/group rows
-  if (testTrim && !testError) {
-    const rows: ResultRow[] = filtered.map((file, i) => ({
-      kind: "file",
-      id: `f:${file.path}`,
-      playlistIndex: i + 1,
-      file,
-    }));
-    return { rows, displayedFileCount: rows.length, testError };
-  }
-
   const enabled = includePatterns.filter((e) => e.enabled && e.pattern.trim());
 
+  // Keep 000…(.search) delimiter/section labels visible while testing when
+  // split-by-search grouping is on; only the file set is narrowed by the test.
   if (!splitBySearch || enabled.length === 0) {
     const rows: ResultRow[] = filtered.map((file, i) => ({
       kind: "file",
