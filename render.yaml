@@ -1,0 +1,16 @@
+# Render Blueprint — static Vite UI (browser mode).
+# Desktop scan/catalog/tags persistence still requires the Tauri app.
+services:
+  - type: web
+    name: local-file-explorer
+    runtime: static
+    plan: free
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
