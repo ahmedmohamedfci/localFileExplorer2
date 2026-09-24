@@ -86,6 +86,7 @@ export async function hostQueryFiles(args: {
   ignoreClauses: { terms: string[] }[];
   sortField: string;
   sortDir: string;
+  discardPath?: boolean;
 }): Promise<FileRecord[]> {
   return hostFetch<FileRecord[]>("/api/query", {
     method: "POST",
@@ -94,6 +95,7 @@ export async function hostQueryFiles(args: {
       ignoreClauses: args.ignoreClauses,
       sortField: args.sortField,
       sortDir: args.sortDir,
+      discardPath: args.discardPath ?? false,
     },
   });
 }

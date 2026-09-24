@@ -227,6 +227,7 @@ export default function App() {
         ignoreClauses: compiledIgnore.clauses,
         sortField: saved.sortField,
         sortDir: saved.sortDir,
+        discardPath: saved.discardPath,
       });
       setFiles(result);
       setHasApplied(true);
@@ -344,7 +345,9 @@ export default function App() {
     const next = { ...settings, sortField: field, sortDir: nextDir };
     setSettings(next);
     if (hasApplied) {
-      setFiles((prev) => sortFileRecords(prev, field, nextDir));
+      setFiles((prev) =>
+        sortFileRecords(prev, field, nextDir, next.discardPath),
+      );
       void api.saveSettings(next);
     }
   }

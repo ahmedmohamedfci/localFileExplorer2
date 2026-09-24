@@ -93,6 +93,9 @@ pub struct AppSettings {
     pub ignore_regexes: Vec<PatternEntry>,
     pub sort_field: String,
     pub sort_dir: String,
+    /// When true, ignore directories for ordering so same names cluster together.
+    #[serde(default)]
+    pub discard_path: bool,
     pub split_by_search: bool,
     pub deep_scan: bool,
     /// Catalog SQLite path. Absolute, or relative to the app data folder.
@@ -115,6 +118,7 @@ impl Default for AppSettings {
             ignore_regexes: Vec::new(),
             sort_field: "path".into(),
             sort_dir: "asc".into(),
+            discard_path: false,
             split_by_search: false,
             deep_scan: false,
             database_path: String::new(),
@@ -193,6 +197,8 @@ pub struct QueryRequest {
     pub ignore_clauses: Vec<PatternClause>,
     pub sort_field: String,
     pub sort_dir: String,
+    #[serde(default)]
+    pub discard_path: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -158,6 +158,7 @@ fn run_server(sessions: Arc<SessionManager>) -> AppResult<()> {
                         &request.ignore_clauses,
                         &request.sort_field,
                         &request.sort_dir,
+                        request.discard_path,
                     )
                 })
             }),

@@ -29,6 +29,13 @@ export type AppSettings = {
   ignoreRegexes: PatternEntry[];
   sortField: string;
   sortDir: "asc" | "desc";
+  /**
+   * When true, path is ignored for ordering so same file names group together.
+   * When false, path is primary (or the path tiebreak) so each directory’s files
+   * stay together, ordered by name within the folder.
+   * Applies to every sort field.
+   */
+  discardPath: boolean;
   splitBySearch: boolean;
   deepScan: boolean;
   /** Catalog SQLite path (absolute, or relative to data dir). */
@@ -148,6 +155,7 @@ export function defaultSettings(): AppSettings {
     ignoreRegexes: [],
     sortField: "path",
     sortDir: "asc",
+    discardPath: false,
     splitBySearch: false,
     deepScan: false,
     databasePath: "",
@@ -184,6 +192,7 @@ export function hydrateSettings(raw: AppSettings): AppSettings {
   return {
     ...defaultSettings(),
     ...raw,
+    discardPath: Boolean(raw.discardPath),
     tableColumns: normalizeTableColumns(raw.tableColumns),
     ui: hydrateUi(raw.ui),
   };
