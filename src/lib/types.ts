@@ -23,6 +23,8 @@ export type UiLayout = {
 };
 
 export type AppSettings = {
+  /** Display name for this settings context (window title). */
+  contextName: string;
   roots: string[];
   extensions: string[];
   includeRegexes: PatternEntry[];
@@ -149,6 +151,7 @@ export function defaultUiLayout(): UiLayout {
 
 export function defaultSettings(): AppSettings {
   return {
+    contextName: "",
     roots: [],
     extensions: [...DEFAULT_EXTENSIONS],
     includeRegexes: [],
@@ -192,6 +195,7 @@ export function hydrateSettings(raw: AppSettings): AppSettings {
   return {
     ...defaultSettings(),
     ...raw,
+    contextName: typeof raw.contextName === "string" ? raw.contextName : "",
     discardPath: Boolean(raw.discardPath),
     tableColumns: normalizeTableColumns(raw.tableColumns),
     ui: hydrateUi(raw.ui),

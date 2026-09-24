@@ -5,10 +5,15 @@ import { isTauri } from "./runtime";
 const APP_TITLE = "Bulk File Explorer";
 export const APP_VERSION = packageJson.version;
 
-export function syncWindowTitle(settingsPath?: string | null): void {
-  const path = settingsPath?.trim();
+/** Build title: `audio (Bulk File Explorer v2.0.6)` or `Bulk File Explorer v2.0.6`. */
+export function formatAppTitle(contextName?: string | null): string {
   const base = `${APP_TITLE} v${APP_VERSION}`;
-  const title = path ? `${base} — ${path}` : base;
+  const name = contextName?.trim();
+  return name ? `${name} (${base})` : base;
+}
+
+export function syncWindowTitle(contextName?: string | null): void {
+  const title = formatAppTitle(contextName);
   document.title = title;
   if (!isTauri()) return;
   void getCurrentWindow()

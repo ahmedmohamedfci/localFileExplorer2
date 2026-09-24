@@ -76,7 +76,7 @@ export default function App() {
         setDataDir(init.dataDir);
         setCatalogCount(init.catalogCount);
         setProgress((p) => ({ ...p, files: init.catalogCount }));
-        syncWindowTitle(init.settingsPath);
+        syncWindowTitle(init.settings.contextName);
       } else {
         enterWithSettings(next, "(browser — URL settings)");
         return;
@@ -91,16 +91,22 @@ export default function App() {
   }
 
   function enterWithSettings(next: AppSettings, dirLabel: string) {
-    setSettings(hydrateSettings(next));
+    const hydrated = hydrateSettings(next);
+    setSettings(hydrated);
     setDataDir(dirLabel);
     setCatalogCount(0);
     setProgress((p) => ({ ...p, files: 0 }));
-    syncWindowTitle(null);
+    syncWindowTitle(hydrated.contextName);
     setShowBrowserGate(false);
     setGateUrlError(null);
     setBootError(null);
     setReady(true);
   }
+
+  useEffect(() => {
+    if (!ready) return;
+    syncWindowTitle(settings.contextName);
+  }, [ready, settings.contextName]);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -128,7 +134,7 @@ export default function App() {
         setDataDir(init.dataDir);
         setCatalogCount(init.catalogCount);
         setProgress((p) => ({ ...p, files: init.catalogCount }));
-        syncWindowTitle(init.settingsPath);
+        syncWindowTitle(init.settings.contextName);
         setHostUrl(await api.getHostUrl());
         setReady(true);
         unlisten = await listen<ScanProgress>("scan-progress", (event) => {
@@ -295,7 +301,7 @@ export default function App() {
       setSettings(hydrateSettings(imported.settings));
       setDataDir(imported.dataDir);
       setCatalogCount(imported.catalogCount);
-      syncWindowTitle(imported.settingsPath);
+      syncWindowTitle(imported.settings.contextName);
       setFiles([]);
       setHasApplied(false);
       setSelectedId(null);
@@ -375,7 +381,7 @@ export default function App() {
                   setDataDir(init.dataDir);
                   setCatalogCount(init.catalogCount);
                   setProgress((p) => ({ ...p, files: init.catalogCount }));
-                  syncWindowTitle(init.settingsPath);
+                  syncWindowTitle(init.settings.contextName);
                   setShowBrowserGate(false);
                   setGateUrlError(null);
                   setBootError(null);

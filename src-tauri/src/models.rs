@@ -87,6 +87,9 @@ impl Default for UiLayout {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
+    /// Display name for this settings context (window title).
+    #[serde(default)]
+    pub context_name: String,
     pub roots: Vec<String>,
     pub extensions: Vec<String>,
     pub include_regexes: Vec<PatternEntry>,
@@ -112,6 +115,7 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            context_name: String::new(),
             roots: Vec::new(),
             extensions: default_extensions(),
             include_regexes: Vec::new(),
