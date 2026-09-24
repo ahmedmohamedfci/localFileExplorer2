@@ -146,7 +146,28 @@ button:disabled {
 .pane-scroll {
   overflow: auto;
   min-height: 0;
+  flex: 1;
   padding: 12px;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--bg-panel);
+}
+
+.pattern-list-scroll {
+  max-height: 40vh;
+  overflow: auto;
+  min-height: 0;
+  margin-bottom: 6px;
+}
+
+.pattern-list-add {
+  margin-bottom: 0;
 }
 
 .pane-header {

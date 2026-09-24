@@ -43,6 +43,25 @@ export function FileFilterPane({
           ◀
         </button>
       </div>
+      <div className="filter-actions">
+        <button
+          type="button"
+          className="btn btn-primary"
+          style={{ flex: 1 }}
+          onClick={onApply}
+          disabled={applying}
+        >
+          {applying ? "Applying…" : "Apply filter"}
+        </button>
+        <button
+          type="button"
+          className={`btn ${settingsOpen ? "btn-primary" : ""}`}
+          style={{ flex: 1 }}
+          onClick={onToggleSettings}
+        >
+          {settingsOpen ? "Back to results" : "Settings"}
+        </button>
+      </div>
       <div className="pane-scroll">
         <PatternList
           title="Include patterns"
@@ -113,26 +132,6 @@ export function FileFilterPane({
             </label>
           </div>
         </div>
-
-        <button
-          type="button"
-          className="btn btn-primary"
-          style={{ width: "100%", marginTop: 4 }}
-          onClick={onApply}
-          disabled={applying}
-        >
-          {applying ? "Applying…" : "Apply filter"}
-        </button>
-        <button
-          type="button"
-          className={`btn ${settingsOpen ? "btn-primary" : ""}`}
-          style={{ width: "100%", marginTop: 8 }}
-          onClick={onToggleSettings}
-        >
-          {settingsOpen ? "Back to results" : "Settings"}
-        </button>
-        {/* Extra hit-area / scroll padding when the window is short */}
-        <div style={{ height: 72 }} aria-hidden />
       </div>
     </aside>
   );
