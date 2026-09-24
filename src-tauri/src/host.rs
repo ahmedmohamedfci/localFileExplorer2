@@ -85,7 +85,7 @@ fn bind_server() -> AppResult<(Server, u16)> {
 
 fn run_server(sessions: Arc<SessionManager>) -> AppResult<()> {
     let (server, port) = bind_server()?;
-    eprintln!("Local File Explorer host listening on {}", host_url());
+    eprintln!("Bulk File Explorer host listening on {}", host_url());
 
     for mut request in server.incoming_requests() {
         let method = request.method().clone();

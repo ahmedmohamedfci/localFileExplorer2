@@ -192,6 +192,20 @@ export function SettingsPanel({
                 Settings file stays in the app data folder. Catalog DB path is stored in
                 settings.json and can point anywhere.
               </p>
+              <label className="hint" htmlFor="context-name">
+                Context name (window title)
+              </label>
+              <div className="field-row">
+                <input
+                  id="context-name"
+                  type="text"
+                  value={settings.contextName}
+                  onChange={(e) =>
+                    onChange({ ...settings, contextName: e.target.value })
+                  }
+                  placeholder="e.g. audio"
+                />
+              </div>
               <p className="hint mono" title={dataDir}>
                 Data folder: {truncateMiddle(dataDir, 72)}
               </p>

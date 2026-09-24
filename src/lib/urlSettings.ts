@@ -64,6 +64,12 @@ export function parseSettingsJson(raw: string): AppSettings {
 
   const defaults = defaultSettings();
   return hydrateSettings({
+    contextName:
+      typeof obj.contextName === "string"
+        ? obj.contextName
+        : typeof obj.name === "string"
+          ? obj.name
+          : "",
     roots: stringArray(obj.roots, defaults.roots),
     extensions: normalizeExtensions(
       stringArray(obj.extensions, [...DEFAULT_EXTENSIONS]),
