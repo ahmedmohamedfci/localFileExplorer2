@@ -116,7 +116,7 @@ export function FileFilterPane({
                 onChange={(e) =>
                   onChange({ ...settings, discardPath: e.target.checked })
                 }
-                title="When on, same file names group together across folders. When off, sort path first then name within each folder."
+                title="When on: sort by file name so same names group across folders. When off: group by parent folder, then by name within each folder."
               />
               Discard path
             </label>

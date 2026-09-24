@@ -482,23 +482,31 @@ fn compare_field(
     }
 }
 
-/// Path-aware secondary ordering:
-/// - discard_path on → name first (same names cluster), then full path
-/// - discard_path off → full path (directory groups, name within folder)
+/// Path-aware ordering used as primary for path/name sorts, or as a tiebreak:
+/// - discard_path on → file name first (same names cluster), then full path
+/// - discard_path off → parent directory first (same folder stays together), then name
 fn compare_path_aware(a: &str, b: &str, discard_path: bool) -> std::cmp::Ordering {
     if discard_path {
         file_name_of(a)
             .cmp(&file_name_of(b))
             .then_with(|| compare_paths(a, b))
     } else {
-        compare_paths(a, b)
+        compare_parents(a, b)
+            .then_with(|| file_name_of(a).cmp(&file_name_of(b)))
+            .then_with(|| compare_paths(a, b))
     }
 }
 
 /// Hierarchical path compare: segment-by-segment, case-insensitive, \ and / treated equal.
 fn compare_paths(a: &str, b: &str) -> std::cmp::Ordering {
-    let a_parts = path_segments(a);
-    let b_parts = path_segments(b);
+    compare_segments(&path_segments(a), &path_segments(b))
+}
+
+fn compare_parents(a: &str, b: &str) -> std::cmp::Ordering {
+    compare_segments(&parent_segments(a), &parent_segments(b))
+}
+
+fn compare_segments(a_parts: &[String], b_parts: &[String]) -> std::cmp::Ordering {
     for (ap, bp) in a_parts.iter().zip(b_parts.iter()) {
         match ap.cmp(bp) {
             std::cmp::Ordering::Equal => {}
@@ -515,6 +523,15 @@ fn path_segments(path: &str) -> Vec<String> {
         .filter(|s| !s.is_empty())
         .map(str::to_string)
         .collect()
+}
+
+fn parent_segments(path: &str) -> Vec<String> {
+    let parts = path_segments(path);
+    if parts.len() > 1 {
+        parts[..parts.len() - 1].to_vec()
+    } else {
+        Vec::new()
+    }
 }
 
 fn file_name_of(path: &str) -> String {
