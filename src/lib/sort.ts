@@ -36,10 +36,14 @@ export function fileNameOf(path: string): string {
   return parts.length > 0 ? parts[parts.length - 1]! : "";
 }
 
-/** Hierarchical path compare — avoids localeCompare ignoring separators. */
-export function comparePathStrings(a: string, b: string): number {
-  const ap = pathSegments(a);
-  const bp = pathSegments(b);
+/** Parent directory segments (everything except the file name). */
+export function parentSegments(path: string): string[] {
+  const parts = pathSegments(path);
+  return parts.length > 1 ? parts.slice(0, -1) : [];
+}
+
+/** Hierarchical segment-list compare. */
+export function compareSegments(ap: string[], bp: string[]): number {
   const n = Math.min(ap.length, bp.length);
   for (let i = 0; i < n; i++) {
     if (ap[i] !== bp[i]) {
@@ -49,22 +53,39 @@ export function comparePathStrings(a: string, b: string): number {
   return ap.length - bp.length;
 }
 
+/** Hierarchical full-path compare — avoids localeCompare ignoring separators. */
+export function comparePathStrings(a: string, b: string): number {
+  return compareSegments(pathSegments(a), pathSegments(b));
+}
+
 function compareNames(a: string, b: string): number {
   const an = fileNameOf(a);
   const bn = fileNameOf(b);
   return an < bn ? -1 : an > bn ? 1 : 0;
 }
 
+function compareParents(a: string, b: string): number {
+  return compareSegments(parentSegments(a), parentSegments(b));
+}
+
 /**
- * Path-aware secondary ordering:
- * - discardPath on → name first (same names cluster), then full path
- * - discardPath off → full path (directory groups, name within folder)
+ * Path-aware ordering used as primary for path/name sorts, or as a tiebreak:
+ * - discardPath on → file name first (same names cluster), then full path
+ * - discardPath off → parent directory first (same folder stays together), then name
  */
-function comparePathAware(aPath: string, bPath: string, discardPath: boolean): number {
+export function comparePathAware(
+  aPath: string,
+  bPath: string,
+  discardPath: boolean,
+): number {
   if (discardPath) {
     return compareNames(aPath, bPath) || comparePathStrings(aPath, bPath);
   }
-  return comparePathStrings(aPath, bPath);
+  return (
+    compareParents(aPath, bPath) ||
+    compareNames(aPath, bPath) ||
+    comparePathStrings(aPath, bPath)
+  );
 }
 
 function compare(
@@ -76,7 +97,6 @@ function compare(
   switch (field) {
     case "name":
     case "path":
-      // Name/path both use path-aware ordering; discardPath flips name-first vs path-first.
       return comparePathAware(a.path, b.path, discardPath);
     case "ext": {
       const ae = a.ext.toLowerCase();

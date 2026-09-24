@@ -60,35 +60,37 @@ export function PatternList({
       {open && (
         <div className="section-body">
           <p className="hint">{hint}</p>
-          {entries.length === 0 && <div className="empty-note">None yet</div>}
-          {entries.map((entry, index) => (
-            <div
-              key={`${entry.pattern}-${index}`}
-              className={`field-row ${entry.enabled ? "" : "disabled"}`}
-            >
-              <input
-                type="checkbox"
-                checked={entry.enabled}
-                onChange={(e) => updateAt(index, { enabled: e.target.checked })}
-                title="Enable pattern"
-              />
-              <input
-                type="text"
-                className="mono"
-                value={entry.pattern}
-                onChange={(e) => updateAt(index, { pattern: e.target.value })}
-              />
-              <button
-                type="button"
-                className="btn-danger"
-                onClick={() => removeAt(index)}
-                title="Remove"
+          <div className="pattern-list-scroll">
+            {entries.length === 0 && <div className="empty-note">None yet</div>}
+            {entries.map((entry, index) => (
+              <div
+                key={`${entry.pattern}-${index}`}
+                className={`field-row ${entry.enabled ? "" : "disabled"}`}
               >
-                ×
-              </button>
-            </div>
-          ))}
-          <div className="field-row">
+                <input
+                  type="checkbox"
+                  checked={entry.enabled}
+                  onChange={(e) => updateAt(index, { enabled: e.target.checked })}
+                  title="Enable pattern"
+                />
+                <input
+                  type="text"
+                  className="mono"
+                  value={entry.pattern}
+                  onChange={(e) => updateAt(index, { pattern: e.target.value })}
+                />
+                <button
+                  type="button"
+                  className="btn-danger"
+                  onClick={() => removeAt(index)}
+                  title="Remove"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="field-row pattern-list-add">
             <input
               type="text"
               className="mono"
