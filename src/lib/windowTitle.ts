@@ -2,7 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import packageJson from "../../package.json";
 import { isTauri } from "./runtime";
 
-const APP_TITLE = "Local File Explorer";
+const APP_TITLE = "Bulk File Explorer";
 export const APP_VERSION = packageJson.version;
 
 export function syncWindowTitle(settingsPath?: string | null): void {

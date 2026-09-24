@@ -61,7 +61,7 @@ export function BrowserSettingsGate({ urlError, onReady, onUseNativeDefault }: P
   return (
     <div className="gate">
       <div className="gate-card">
-        <h1 className="gate-title">Local File Explorer</h1>
+        <h1 className="gate-title">Bulk File Explorer</h1>
         <p className="gate-lead">
           Drop or select a <code>settings.json</code> for this tab. Settings are
           kept in the URL only — a new tab always starts here.
