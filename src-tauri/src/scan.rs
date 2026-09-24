@@ -382,6 +382,7 @@ pub fn filter_and_sort(
     ignore_clauses: &[crate::models::PatternClause],
     sort_field: &str,
     sort_dir: &str,
+    discard_path: bool,
 ) -> AppResult<Vec<FileRecord>> {
     let includes = compile_clauses(include_clauses)?;
     let ignores = compile_clauses(ignore_clauses)?;
@@ -414,7 +415,7 @@ pub fn filter_and_sort(
         }
         field => {
             out.sort_by(|a, b| {
-                let ord = compare_field(a, b, field);
+                let ord = compare_field(a, b, field, discard_path);
                 if desc {
                     ord.reverse()
                 } else {
@@ -448,32 +449,49 @@ fn clause_matches(terms: &[Regex], path: &str) -> bool {
     terms.iter().all(|re| re.is_match(path))
 }
 
-fn compare_field(a: &FileRecord, b: &FileRecord, field: &str) -> std::cmp::Ordering {
+fn compare_field(
+    a: &FileRecord,
+    b: &FileRecord,
+    field: &str,
+    discard_path: bool,
+) -> std::cmp::Ordering {
     match field {
-        "name" => file_name_of(&a.path)
-            .cmp(&file_name_of(&b.path))
-            .then_with(|| compare_paths(&a.path, &b.path)),
+        "name" | "path" => compare_path_aware(&a.path, &b.path, discard_path),
         "ext" => a
             .ext
             .to_lowercase()
             .cmp(&b.ext.to_lowercase())
-            .then_with(|| compare_paths(&a.path, &b.path)),
+            .then_with(|| compare_path_aware(&a.path, &b.path, discard_path)),
         "sizeBytes" | "size" => a
             .size_bytes
             .cmp(&b.size_bytes)
-            .then_with(|| compare_paths(&a.path, &b.path)),
-        "atime" => cmp_f64(a.atime, b.atime).then_with(|| compare_paths(&a.path, &b.path)),
-        "mtime" => cmp_f64(a.mtime, b.mtime).then_with(|| compare_paths(&a.path, &b.path)),
-        "birthtime" => {
-            cmp_f64(a.birthtime, b.birthtime).then_with(|| compare_paths(&a.path, &b.path))
+            .then_with(|| compare_path_aware(&a.path, &b.path, discard_path)),
+        "atime" => {
+            cmp_f64(a.atime, b.atime).then_with(|| compare_path_aware(&a.path, &b.path, discard_path))
         }
-        "durationMs" | "duration" => {
-            cmp_opt_f64(a.duration_ms, b.duration_ms).then_with(|| compare_paths(&a.path, &b.path))
+        "mtime" => {
+            cmp_f64(a.mtime, b.mtime).then_with(|| compare_path_aware(&a.path, &b.path, discard_path))
         }
-        "indexedAt" => {
-            cmp_f64(a.indexed_at, b.indexed_at).then_with(|| compare_paths(&a.path, &b.path))
-        }
-        _ => compare_paths(&a.path, &b.path),
+        "birthtime" => cmp_f64(a.birthtime, b.birthtime)
+            .then_with(|| compare_path_aware(&a.path, &b.path, discard_path)),
+        "durationMs" | "duration" => cmp_opt_f64(a.duration_ms, b.duration_ms)
+            .then_with(|| compare_path_aware(&a.path, &b.path, discard_path)),
+        "indexedAt" => cmp_f64(a.indexed_at, b.indexed_at)
+            .then_with(|| compare_path_aware(&a.path, &b.path, discard_path)),
+        _ => compare_path_aware(&a.path, &b.path, discard_path),
+    }
+}
+
+/// Path-aware secondary ordering:
+/// - discard_path on → name first (same names cluster), then full path
+/// - discard_path off → full path (directory groups, name within folder)
+fn compare_path_aware(a: &str, b: &str, discard_path: bool) -> std::cmp::Ordering {
+    if discard_path {
+        file_name_of(a)
+            .cmp(&file_name_of(b))
+            .then_with(|| compare_paths(a, b))
+    } else {
+        compare_paths(a, b)
     }
 }
 

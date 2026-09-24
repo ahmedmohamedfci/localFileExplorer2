@@ -81,6 +81,7 @@ pub fn query_files(request: QueryRequest) -> AppResult<Vec<FileRecord>> {
         &request.ignore_clauses,
         &request.sort_field,
         &request.sort_dir,
+        request.discard_path,
     )
 }
 

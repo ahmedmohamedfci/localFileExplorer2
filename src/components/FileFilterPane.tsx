@@ -44,14 +44,6 @@ export function FileFilterPane({
         </button>
       </div>
       <div className="pane-scroll">
-        <button
-          type="button"
-          className={`btn ${settingsOpen ? "btn-primary" : ""}`}
-          style={{ width: "100%", marginBottom: 12 }}
-          onClick={onToggleSettings}
-        >
-          {settingsOpen ? "Back to results" : "Settings"}
-        </button>
         <PatternList
           title="Include patterns"
           hint="OR on full path — empty = all. Use + for AND (any order)."
@@ -101,6 +93,17 @@ export function FileFilterPane({
             <label className="inline" style={{ marginTop: 6, display: "flex" }}>
               <input
                 type="checkbox"
+                checked={settings.discardPath}
+                onChange={(e) =>
+                  onChange({ ...settings, discardPath: e.target.checked })
+                }
+                title="When on, same file names group together across folders. When off, sort path first then name within each folder."
+              />
+              Discard path
+            </label>
+            <label className="inline" style={{ marginTop: 6, display: "flex" }}>
+              <input
+                type="checkbox"
                 checked={settings.splitBySearch}
                 onChange={(e) =>
                   onChange({ ...settings, splitBySearch: e.target.checked })
@@ -119,6 +122,14 @@ export function FileFilterPane({
           disabled={applying}
         >
           {applying ? "Applying…" : "Apply filter"}
+        </button>
+        <button
+          type="button"
+          className={`btn ${settingsOpen ? "btn-primary" : ""}`}
+          style={{ width: "100%", marginTop: 8 }}
+          onClick={onToggleSettings}
+        >
+          {settingsOpen ? "Back to results" : "Settings"}
         </button>
         {/* Extra hit-area / scroll padding when the window is short */}
         <div style={{ height: 72 }} aria-hidden />

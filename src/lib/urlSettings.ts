@@ -75,6 +75,7 @@ export function parseSettingsJson(raw: string): AppSettings {
         ? obj.sortField
         : defaults.sortField,
     sortDir: obj.sortDir === "desc" ? "desc" : "asc",
+    discardPath: Boolean(obj.discardPath),
     splitBySearch: Boolean(obj.splitBySearch),
     deepScan: Boolean(obj.deepScan),
     databasePath:

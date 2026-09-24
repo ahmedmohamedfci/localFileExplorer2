@@ -54,6 +54,7 @@ export function queryFiles(args: {
   ignoreClauses: { terms: string[] }[];
   sortField: string;
   sortDir: string;
+  discardPath?: boolean;
 }): Promise<FileRecord[]> {
   if (isTauri()) {
     return invoke("query_files", {
@@ -62,6 +63,7 @@ export function queryFiles(args: {
         ignoreClauses: args.ignoreClauses,
         sortField: args.sortField,
         sortDir: args.sortDir,
+        discardPath: args.discardPath ?? false,
       },
     });
   }
