@@ -143,27 +143,58 @@ pub fn run_scan_with_sink(
                     .unwrap_or(false);
 
             if unchanged {
-                // Still fill missing durations without re-walking file content indexes.
+                // Folder listing unchanged — still refresh last-access (and mtime),
+                // and fill any missing durations, without re-indexing the folder.
+                let mut refreshed = 0u64;
                 let mut filled = 0u64;
-                for (path, _meta) in &media_files {
+                for (path, meta) in &media_files {
                     let path_str = path_to_string(path);
                     if let Ok(Some(existing)) = db.get_file(&path_str) {
-                        if existing.duration_ms.is_none() {
+                        let mtime = meta
+                            .modified()
+                            .ok()
+                            .map(system_time_secs)
+                            .unwrap_or(existing.mtime);
+                        let atime = meta
+                            .accessed()
+                            .ok()
+                            .map(system_time_secs)
+                            .unwrap_or(mtime);
+                        let times_changed = (existing.atime - atime).abs() > 0.5
+                            || (existing.mtime - mtime).abs() > 0.5;
+
+                        let mut updated = existing;
+                        let mut dirty = false;
+                        if times_changed {
+                            updated.atime = atime;
+                            updated.mtime = mtime;
+                            dirty = true;
+                            refreshed += 1;
+                        }
+                        if updated.duration_ms.is_none() {
                             if let Some(ms) = probe_duration_ms(path) {
-                                let mut updated = existing;
                                 updated.duration_ms = Some(ms);
-                                updated.indexed_at = now_secs();
-                                let _ = db.upsert_file(&updated);
+                                dirty = true;
                                 filled += 1;
-                                files += 1;
                             }
+                        }
+                        if dirty {
+                            updated.indexed_at = now_secs();
+                            let _ = db.upsert_file(&updated);
+                            files += 1;
                         }
                     }
                 }
-                if filled == 0 {
+                if refreshed == 0 && filled == 0 {
                     skipped += 1;
                 } else {
-                    let msg = format!("Filling durations ({filled})…");
+                    let msg = if filled > 0 && refreshed > 0 {
+                        format!("Updating metadata ({refreshed} access, {filled} duration)…")
+                    } else if filled > 0 {
+                        format!("Filling durations ({filled})…")
+                    } else {
+                        format!("Refreshing access times ({refreshed})…")
+                    };
                     emit(
                         &sink,
                         "scanning",
@@ -280,7 +311,7 @@ pub fn run_scan_with_sink(
     let catalog = db.catalog_count()? as u64;
     let progress = ScanProgress {
         phase: "done".into(),
-        message: "Scan complete".into(),
+        message: "DB updated".into(),
         scanned,
         skipped,
         files: catalog,

@@ -88,10 +88,45 @@ export default function App() {
   const [moving, setMoving] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const bulkRef = useRef<HTMLDivElement>(null);
+  const autoUpdateStarted = useRef(false);
+  const lastScanPhase = useRef<string>("idle");
   const [hostUrl, setHostUrl] = useState<string | null>(null);
 
   const leftPaneOpen = settings.ui.leftPaneOpen;
   const settingsOpen = settings.ui.settingsOpen;
+
+  function applyScanProgress(next: ScanProgress) {
+    setProgress(next);
+    setScanning(next.phase === "scanning");
+    if (next.phase === "done") {
+      setCatalogCount(next.files);
+    }
+    if (next.phase === lastScanPhase.current) return;
+    lastScanPhase.current = next.phase;
+    if (next.phase === "done") {
+      setStatusMessage("DB updated");
+    } else if (next.phase === "error") {
+      setStatusMessage(next.message);
+    } else if (next.message === "Scan cancelled") {
+      setStatusMessage("Scan cancelled");
+      setScanning(false);
+    } else if (next.phase === "scanning") {
+      setStatusMessage("Updating DB…");
+    }
+  }
+
+  /** Quiet catalog refresh on boot (roots required). Safe to call once per session. */
+  function startBackgroundDbUpdate(next: AppSettings) {
+    if (autoUpdateStarted.current) return;
+    if (next.roots.length === 0) return;
+    autoUpdateStarted.current = true;
+    setScanning(true);
+    setStatusMessage("Updating DB…");
+    void api.startScan(next).catch((e) => {
+      setScanning(false);
+      setStatusMessage(e instanceof Error ? e.message : String(e));
+    });
+  }
 
   useEffect(() => {
     if (!bulkOpen) return;
@@ -123,19 +158,21 @@ export default function App() {
         ? await api.initBrowserSession(next)
         : null;
       if (init) {
-        setSettings(hydrateSettings(init.settings));
+        const hydrated = hydrateSettings(init.settings);
+        setSettings(hydrated);
         setDataDir(init.dataDir);
         setCatalogCount(init.catalogCount);
         setProgress((p) => ({ ...p, files: init.catalogCount }));
-        syncWindowTitle(init.settings.contextName);
+        syncWindowTitle(hydrated.contextName);
+        setShowBrowserGate(false);
+        setGateUrlError(null);
+        setBootError(null);
+        setReady(true);
+        startBackgroundDbUpdate(hydrated);
       } else {
         enterWithSettings(next, "(browser — URL settings)");
         return;
       }
-      setShowBrowserGate(false);
-      setGateUrlError(null);
-      setBootError(null);
-      setReady(true);
     } catch (e) {
       setBootError(e instanceof Error ? e.message : String(e));
     }
@@ -181,27 +218,18 @@ export default function App() {
     (async () => {
       try {
         const init = await api.initApp();
-        setSettings(hydrateSettings(init.settings));
+        const hydrated = hydrateSettings(init.settings);
+        setSettings(hydrated);
         setDataDir(init.dataDir);
         setCatalogCount(init.catalogCount);
         setProgress((p) => ({ ...p, files: init.catalogCount }));
-        syncWindowTitle(init.settings.contextName);
+        syncWindowTitle(hydrated.contextName);
         setHostUrl(await api.getHostUrl());
         setReady(true);
         unlisten = await listen<ScanProgress>("scan-progress", (event) => {
-          const next = event.payload;
-          setProgress(next);
-          setScanning(next.phase === "scanning");
-          if (next.phase === "done") {
-            setCatalogCount(next.files);
-            setStatusMessage("Scan complete");
-          } else if (next.phase === "error") {
-            setStatusMessage(next.message);
-          } else if (next.message === "Scan cancelled") {
-            setStatusMessage("Scan cancelled");
-            setScanning(false);
-          }
+          applyScanProgress(event.payload);
         });
+        startBackgroundDbUpdate(hydrated);
       } catch (e) {
         setBootError(e instanceof Error ? e.message : String(e));
       }
@@ -218,17 +246,7 @@ export default function App() {
       try {
         const next = await api.getScanProgress();
         if (cancelled) return;
-        setProgress(next);
-        setScanning(next.phase === "scanning");
-        if (next.phase === "done") {
-          setCatalogCount(next.files);
-          setStatusMessage("Scan complete");
-        } else if (next.phase === "error") {
-          setStatusMessage(next.message);
-        } else if (next.message === "Scan cancelled") {
-          setStatusMessage("Scan cancelled");
-          setScanning(false);
-        }
+        applyScanProgress(next);
       } catch {
         /* host may be restarting */
       }
@@ -518,15 +536,17 @@ export default function App() {
             ? async () => {
                 try {
                   const init = await api.initBrowserSessionDefault();
-                  setSettings(hydrateSettings(init.settings));
+                  const hydrated = hydrateSettings(init.settings);
+                  setSettings(hydrated);
                   setDataDir(init.dataDir);
                   setCatalogCount(init.catalogCount);
                   setProgress((p) => ({ ...p, files: init.catalogCount }));
-                  syncWindowTitle(init.settings.contextName);
+                  syncWindowTitle(hydrated.contextName);
                   setShowBrowserGate(false);
                   setGateUrlError(null);
                   setBootError(null);
                   setReady(true);
+                  startBackgroundDbUpdate(hydrated);
                 } catch (e) {
                   setGateUrlError(
                     e instanceof Error ? e.message : String(e),
