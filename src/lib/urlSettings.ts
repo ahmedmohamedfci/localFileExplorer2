@@ -1,5 +1,6 @@
 import {
   DEFAULT_EXTENSIONS,
+  clampNumFiles,
   defaultSettings,
   hydrateSettings,
   type AppSettings,
@@ -83,6 +84,7 @@ export function parseSettingsJson(raw: string): AppSettings {
     sortDir: obj.sortDir === "desc" ? "desc" : "asc",
     discardPath: Boolean(obj.discardPath),
     splitBySearch: Boolean(obj.splitBySearch),
+    numFiles: clampNumFiles(obj.numFiles),
     deepScan: Boolean(obj.deepScan),
     databasePath:
       typeof obj.databasePath === "string" ? obj.databasePath : "",

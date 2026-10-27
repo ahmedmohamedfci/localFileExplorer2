@@ -13,10 +13,14 @@ export function buildDisplayRows(args: {
   files: FileRecord[];
   includePatterns: PatternEntry[];
   splitBySearch: boolean;
+  /** 0 = no cap. With split, applied per section; otherwise to the whole list. */
+  numFiles: number;
   testPattern: string;
   collapsedGroups: Set<string>;
 }): { rows: ResultRow[]; displayedFileCount: number; testError: string | null } {
-  const { files, includePatterns, splitBySearch, testPattern, collapsedGroups } = args;
+  const { files, includePatterns, splitBySearch, numFiles, testPattern, collapsedGroups } =
+    args;
+  const limit = fileLimit(numFiles);
   const testTrim = testPattern.trim();
   let testError: string | null = null;
   if (testTrim) {
@@ -30,7 +34,8 @@ export function buildDisplayRows(args: {
 
   // Live test hides delimiter/group rows
   if (testTrim && !testError) {
-    const rows: ResultRow[] = filtered.map((file, i) => ({
+    const shown = takeLimited(filtered, limit);
+    const rows: ResultRow[] = shown.map((file, i) => ({
       kind: "file",
       id: `f:${file.path}`,
       playlistIndex: i + 1,
@@ -42,7 +47,8 @@ export function buildDisplayRows(args: {
   const enabled = includePatterns.filter((e) => e.enabled && e.pattern.trim());
 
   if (!splitBySearch || enabled.length === 0) {
-    const rows: ResultRow[] = filtered.map((file, i) => ({
+    const shown = takeLimited(filtered, limit);
+    const rows: ResultRow[] = shown.map((file, i) => ({
       kind: "file",
       id: `f:${file.path}`,
       playlistIndex: i + 1,
@@ -59,8 +65,9 @@ export function buildDisplayRows(args: {
     const compiled = compileUserPattern(entry.pattern);
     if (!compiled.ok) continue;
 
-    const groupFiles = filtered.filter((f) =>
-      pathMatchesClause(f.path, compiled.clause),
+    const groupFiles = takeLimited(
+      filtered.filter((f) => pathMatchesClause(f.path, compiled.clause)),
+      limit,
     );
     const groupKey = entry.pattern;
     const collapsed = collapsedGroups.has(groupKey);
@@ -105,6 +112,29 @@ export function buildDisplayRows(args: {
   }
 
   return { rows, displayedFileCount, testError };
+}
+
+/** Real files in playlist order, without delimiter labels or duplicate paths. */
+export function playlistFilePaths(rows: ResultRow[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const row of rows) {
+    if (row.kind !== "file" || seen.has(row.file.path)) continue;
+    seen.add(row.file.path);
+    out.push(row.file.path);
+  }
+  return out;
+}
+
+/** Positive integers cap the list. 0 and invalid values mean unlimited. */
+function fileLimit(numFiles: number): number | null {
+  if (!Number.isFinite(numFiles) || numFiles <= 0) return null;
+  return Math.floor(numFiles);
+}
+
+function takeLimited<T>(items: T[], limit: number | null): T[] {
+  if (limit == null) return items;
+  return items.slice(0, limit);
 }
 
 export function rowsToPlaylistItems(rows: ResultRow[]): {

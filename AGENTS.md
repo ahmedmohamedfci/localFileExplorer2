@@ -15,7 +15,7 @@ Desktop app for indexing personal video/audio libraries, filtering by pattern la
 ## Architecture split
 
 - **Rust (`src-tauri`)** — I/O, DB, OS integration (keep lean)
-- **React (`src`)** — pattern language (`+` = AND, flexible substrings), live filter test, split-by-search grouping, settings UI
+- **React (`src`)** — pattern language (`+` = AND, `!term` = must not contain, flexible substrings), live filter test, split-by-search grouping, settings UI
 
 Results stay empty until **Apply filter**. Temp `playlist.mpcpl` is deleted at startup. Data defaults to a `data/` folder next to the executable (override with `LFE_DATA_DIR` / `--data-dir`).
 

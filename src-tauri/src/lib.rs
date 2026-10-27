@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod move_files;
 mod duration;
 mod host;
 mod models;
@@ -54,6 +55,7 @@ pub fn run() {
             commands::get_scan_progress,
             commands::open_file,
             commands::open_playlist,
+            commands::move_files,
             commands::pick_folder,
             commands::pick_database_path,
             commands::export_settings,

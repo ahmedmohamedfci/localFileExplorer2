@@ -5,6 +5,7 @@ import type {
   AppSettings,
   FileRecord,
   InitResponse,
+  MoveFilesResult,
   PlaylistItem,
   ScanProgress,
 } from "./types";
@@ -108,9 +109,18 @@ export function openPlaylist(items: PlaylistItem[]): Promise<string> {
   return requireHostOrTauri();
 }
 
-export function pickFolder(): Promise<string | null> {
-  if (isTauri()) return invoke("pick_folder");
-  if (isBrowserHost()) return host.hostPickFolder();
+export function pickFolder(title?: string): Promise<string | null> {
+  if (isTauri()) return invoke("pick_folder", { title: title ?? null });
+  if (isBrowserHost()) return host.hostPickFolder(title);
+  return requireHostOrTauri();
+}
+
+export function moveFiles(
+  paths: string[],
+  destination: string,
+): Promise<MoveFilesResult> {
+  if (isTauri()) return invoke("move_files", { paths, destination });
+  if (isBrowserHost()) return host.hostMoveFiles(paths, destination);
   return requireHostOrTauri();
 }
 

@@ -5,7 +5,7 @@ import { isTauri } from "./runtime";
 const APP_TITLE = "Bulk File Explorer";
 export const APP_VERSION = packageJson.version;
 
-/** Build title: `audio (Bulk File Explorer v2.0.6)` or `Bulk File Explorer v2.0.6`. */
+/** Build title: `audio (Bulk File Explorer v2.1.0)` or `Bulk File Explorer v2.1.0`. */
 export function formatAppTitle(contextName?: string | null): string {
   const base = `${APP_TITLE} v${APP_VERSION}`;
   const name = contextName?.trim();

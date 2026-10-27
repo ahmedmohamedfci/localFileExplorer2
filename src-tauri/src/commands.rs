@@ -172,12 +172,21 @@ pub fn open_playlist(items: Vec<PlaylistItem>) -> AppResult<String> {
 }
 
 #[tauri::command]
-pub fn pick_folder(app: AppHandle) -> AppResult<Option<String>> {
-    let folder = app.dialog().file().blocking_pick_folder();
+pub fn pick_folder(app: AppHandle, title: Option<String>) -> AppResult<Option<String>> {
+    let mut dialog = app.dialog().file();
+    if let Some(title) = title.as_deref().filter(|t| !t.trim().is_empty()) {
+        dialog = dialog.set_title(title);
+    }
+    let folder = dialog.blocking_pick_folder();
     Ok(folder.map(|p| {
         let path = p.into_path().unwrap_or_default();
         path_to_string(&path)
     }))
+}
+
+#[tauri::command]
+pub fn move_files(paths: Vec<String>, destination: String) -> AppResult<crate::move_files::MoveFilesResult> {
+    crate::move_files::move_files_to_dir(&paths, &destination)
 }
 
 #[tauri::command]

@@ -9,6 +9,7 @@ use tiny_http::{Header, Method, Response, Server, StatusCode};
 use crate::db::CatalogDb;
 use crate::models::{AppError, AppResult, AppSettings, InitResponse, PlaylistItem, QueryRequest};
 use crate::paths::{self, path_to_string};
+use crate::move_files;
 use crate::playlist::{open_path, write_and_open_playlist};
 use crate::scan::filter_and_sort;
 use crate::session::{
@@ -193,10 +194,32 @@ fn run_server(sessions: Arc<SessionManager>) -> AppResult<()> {
                     Ok(json!({ "path": path }))
                 })
             }),
+            (Method::Post, "/api/files/move") => with_session_route(&sessions, session_id, |session| {
+                #[derive(Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                struct Body {
+                    paths: Vec<String>,
+                    destination: String,
+                }
+                let payload: Body = parse_json_body(&body)?;
+                session.with_paths(|| move_files::move_files_to_dir(&payload.paths, &payload.destination))
+            }),
             (Method::Post, "/api/dialog/pick-folder") => {
-                let path = rfd::FileDialog::new()
-                    .pick_folder()
-                    .map(|p| path_to_string(&p));
+                #[derive(Deserialize, Default)]
+                #[serde(rename_all = "camelCase")]
+                struct Body {
+                    #[serde(default)]
+                    title: Option<String>,
+                }
+                let title = serde_json::from_slice::<Body>(&body)
+                    .unwrap_or_default()
+                    .title
+                    .filter(|t| !t.trim().is_empty());
+                let mut dialog = rfd::FileDialog::new();
+                if let Some(title) = title {
+                    dialog = dialog.set_title(title);
+                }
+                let path = dialog.pick_folder().map(|p| path_to_string(&p));
                 json_response(StatusCode(200), &path)
             }
             (Method::Post, "/api/dialog/pick-database") => {

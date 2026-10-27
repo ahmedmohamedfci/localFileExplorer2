@@ -1,6 +1,6 @@
 import type { FileRecord } from "./types";
 
-/** Client-side sort of already-loaded results (table header clicks). */
+/** Client-side sort of already-loaded results (table header clicks / discard-path toggle). */
 export function sortFileRecords(
   files: FileRecord[],
   sortField: string,
@@ -9,8 +9,8 @@ export function sortFileRecords(
 ): FileRecord[] {
   const out = [...files];
   if (sortField === "random") {
-    // Keep current order for random — reshuffle only via Apply filter
-    return out;
+    // Keep current random order; when discardPath is on, cluster same names together.
+    return discardPath ? clusterByFileName(out) : out;
   }
 
   const desc = sortDir === "desc";
@@ -19,6 +19,30 @@ export function sortFileRecords(
     return desc ? -ord : ord;
   });
   return out;
+}
+
+/**
+ * Cluster files that share the same file name, preserving first-seen group order
+ * (so a prior random shuffle still looks random across different names).
+ */
+export function clusterByFileName(files: FileRecord[]): FileRecord[] {
+  const groups = new Map<string, FileRecord[]>();
+  const order: string[] = [];
+  for (const f of files) {
+    const key = fileNameOf(f.path);
+    if (!groups.has(key)) {
+      order.push(key);
+      groups.set(key, []);
+    }
+    groups.get(key)!.push(f);
+  }
+  const result: FileRecord[] = [];
+  for (const key of order) {
+    const group = groups.get(key)!;
+    group.sort((a, b) => comparePathStrings(a.path, b.path));
+    result.push(...group);
+  }
+  return result;
 }
 
 /** Split path into lowercase segments (handles \ and /). */

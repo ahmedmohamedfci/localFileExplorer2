@@ -2,6 +2,7 @@ import type {
   AppSettings,
   FileRecord,
   InitResponse,
+  MoveFilesResult,
   PlaylistItem,
   ScanProgress,
 } from "./types";
@@ -124,10 +125,20 @@ export async function hostOpenPlaylist(items: PlaylistItem[]): Promise<string> {
   return res.path;
 }
 
-export async function hostPickFolder(): Promise<string | null> {
+export async function hostPickFolder(title?: string): Promise<string | null> {
   return hostFetch<string | null>("/api/dialog/pick-folder", {
     method: "POST",
-    json: {},
+    json: { title: title ?? null },
+  });
+}
+
+export async function hostMoveFiles(
+  paths: string[],
+  destination: string,
+): Promise<MoveFilesResult> {
+  return hostFetch<MoveFilesResult>("/api/files/move", {
+    method: "POST",
+    json: { paths, destination },
   });
 }
 

@@ -197,6 +197,20 @@ impl CatalogDb {
         Ok(out)
     }
 
+    /// Point a catalog row at a new path. A stale row already using `to` is removed first.
+    pub fn relocate_file(&self, from: &str, to: &str) -> AppResult<()> {
+        if from == to {
+            return Ok(());
+        }
+        self.conn
+            .execute("DELETE FROM files WHERE path = ?1", params![to])?;
+        self.conn.execute(
+            "UPDATE files SET path = ?1 WHERE path = ?2",
+            params![to, from],
+        )?;
+        Ok(())
+    }
+
     pub fn delete_file(&self, path: &str) -> AppResult<()> {
         self.conn
             .execute("DELETE FROM files WHERE path = ?1", params![path])?;

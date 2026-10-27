@@ -148,6 +148,7 @@ button:disabled {
   min-height: 0;
   flex: 1;
   padding: 12px;
+  margin-bottom: 20px;
 }
 
 .filter-actions {
@@ -157,6 +158,34 @@ button:disabled {
   padding: 10px 12px;
   border-bottom: 1px solid var(--border-soft);
   background: var(--bg-panel);
+}
+
+.sort-under-actions {
+  flex-shrink: 0;
+  padding: 10px 12px 12px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--bg-panel);
+}
+
+.num-files-field {
+  margin-top: 8px;
+  display: flex;
+}
+
+.num-files-field input[type="number"] {
+  width: 72px;
+  flex: 0 0 72px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 6px;
+}
+
+.sort-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 6px;
 }
 
 .pattern-list-scroll {
@@ -204,6 +233,37 @@ button:disabled {
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+}
+
+.bulk-actions {
+  position: relative;
+}
+
+.bulk-actions-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 160px;
+  padding: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.bulk-actions-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius);
+  padding: 6px 10px;
+}
+
+.bulk-actions-item:hover:not(:disabled) {
+  background: var(--bg-hover);
 }
 
 .results-header .count {
@@ -376,27 +436,26 @@ textarea {
 }
 
 .selection-line {
-  padding: 6px 14px;
-  border-bottom: 1px solid var(--border-soft);
+  height: 28px;
+  padding: 0 14px;
+  border-bottom: 1px solid transparent;
   color: var(--text-muted);
   font-size: 12px;
+  line-height: 28px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   flex-shrink: 0;
 }
 
+.selection-line.has-selection {
+  border-bottom-color: var(--border-soft);
+}
+
 .selection-line strong {
   color: var(--text);
   font-family: var(--font-mono);
   font-weight: 600;
-}
-
-.results-hint {
-  padding: 4px 14px 8px;
-  color: var(--text-faint);
-  font-size: 11px;
-  flex-shrink: 0;
 }
 
 .test-bar {

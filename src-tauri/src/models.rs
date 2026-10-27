@@ -100,6 +100,9 @@ pub struct AppSettings {
     #[serde(default)]
     pub discard_path: bool,
     pub split_by_search: bool,
+    /// Playlist size cap. 0 = no limit.
+    #[serde(default)]
+    pub num_files: u32,
     pub deep_scan: bool,
     /// Catalog SQLite path. Absolute, or relative to the app data folder.
     /// Empty = `{dataDir}/file-index.db`.
@@ -124,6 +127,7 @@ impl Default for AppSettings {
             sort_dir: "asc".into(),
             discard_path: false,
             split_by_search: false,
+            num_files: 0,
             deep_scan: false,
             database_path: String::new(),
             table_columns: default_table_columns(),
@@ -190,8 +194,11 @@ pub struct ScanProgress {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PatternClause {
-    /// All terms must match the full path (AND). Multiple clauses are OR'd.
+    /// Positive terms: all must match the full path (AND). Multiple clauses are OR'd.
     pub terms: Vec<String>,
+    /// Negative terms (`!foo`): none may match the full path.
+    #[serde(default)]
+    pub not_terms: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./App.css";
 import { BrowserSettingsGate } from "./components/BrowserSettingsGate";
 import { SettingsPanel } from "./components/ControlsPane";
@@ -9,7 +9,12 @@ import { sortFileRecords } from "./lib/sort";
 import * as api from "./lib/api";
 import { compilePatternList, compileUserPattern, validatePattern } from "./lib/patterns";
 import { truncateMiddle } from "./lib/format";
-import { buildDisplayRows, enabledPatterns, rowsToPlaylistItems } from "./lib/results";
+import {
+  buildDisplayRows,
+  enabledPatterns,
+  playlistFilePaths,
+  rowsToPlaylistItems,
+} from "./lib/results";
 import { isBrowserHost, isTauri } from "./lib/runtime";
 import {
   defaultSettings,
@@ -18,12 +23,34 @@ import {
   type FileRecord,
   type PatternEntry,
   type ResultRow,
+  type MoveFilesResult,
   type ScanProgress,
   type UiLayout,
 } from "./lib/types";
 import { type TableColumnConfig } from "./lib/tableColumns";
 import { readSettingsFromHash } from "./lib/urlSettings";
 import { syncWindowTitle } from "./lib/windowTitle";
+
+function formatMoveStatus(result: MoveFilesResult): string {
+  const dest = result.destination;
+  if (result.moved === 0 && result.failed.length > 0) {
+    return `Could not move files. ${result.failed.slice(0, 2).join("; ")}`;
+  }
+  if (result.moved === 0 && result.skipped > 0) {
+    return result.skipped === 1
+      ? `That file is already in ${dest}`
+      : `All ${result.skipped} files are already in ${dest}`;
+  }
+  const noun = result.moved === 1 ? "file" : "files";
+  let msg = `Moved ${result.moved} ${noun} to ${dest}`;
+  if (result.skipped > 0) msg += ` (${result.skipped} already there)`;
+  if (result.failed.length > 0) {
+    const extra =
+      result.failed.length > 2 ? ` (+${result.failed.length - 2} more)` : "";
+    msg += `. ${result.failed.length} failed: ${result.failed.slice(0, 2).join("; ")}${extra}`;
+  }
+  return msg;
+}
 
 const idleProgress: ScanProgress = {
   phase: "idle",
@@ -47,16 +74,40 @@ export default function App() {
   const [applying, setApplying] = useState(false);
   const [loadingLabel, setLoadingLabel] = useState(false);
   const [testPattern, setTestPattern] = useState("");
+  /** When true, test pattern searches the catalog without include/ignore filters. */
+  const [testGlobalSearch, setTestGlobalSearch] = useState(false);
+  const [globalSearchFiles, setGlobalSearchFiles] = useState<FileRecord[] | null>(
+    null,
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [progress, setProgress] = useState<ScanProgress>(idleProgress);
   const [scanning, setScanning] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [queryError, setQueryError] = useState<string | null>(null);
+  const [moving, setMoving] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const bulkRef = useRef<HTMLDivElement>(null);
   const [hostUrl, setHostUrl] = useState<string | null>(null);
 
   const leftPaneOpen = settings.ui.leftPaneOpen;
   const settingsOpen = settings.ui.settingsOpen;
+
+  useEffect(() => {
+    if (!bulkOpen) return;
+    function onDoc(e: MouseEvent) {
+      if (!bulkRef.current?.contains(e.target as Node)) setBulkOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setBulkOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [bulkOpen]);
 
   function patchUi(patch: Partial<UiLayout>) {
     setSettings((prev) => {
@@ -190,17 +241,79 @@ export default function App() {
     };
   }, [ready]);
 
+  useEffect(() => {
+    if (!testGlobalSearch || !hasApplied) {
+      setGlobalSearchFiles(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await api.queryFiles({
+          includeClauses: [],
+          ignoreClauses: [],
+          sortField: settings.sortField,
+          sortDir: settings.sortDir,
+          discardPath: settings.discardPath,
+        });
+        if (!cancelled) setGlobalSearchFiles(result);
+      } catch {
+        if (!cancelled) setGlobalSearchFiles(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    testGlobalSearch,
+    hasApplied,
+    catalogCount,
+    settings.sortField,
+    settings.sortDir,
+    settings.discardPath,
+  ]);
+
+  const filesForDisplay =
+    testGlobalSearch && testPattern.trim()
+      ? (globalSearchFiles ?? [])
+      : files;
+
   const { rows, displayedFileCount, testError } = useMemo(
     () =>
       buildDisplayRows({
-        files,
+        files: filesForDisplay,
         includePatterns: settings.includeRegexes,
         splitBySearch: settings.splitBySearch,
+        numFiles: settings.numFiles,
         testPattern,
         collapsedGroups,
       }),
-    [files, settings.includeRegexes, settings.splitBySearch, testPattern, collapsedGroups],
+    [
+      filesForDisplay,
+      settings.includeRegexes,
+      settings.splitBySearch,
+      settings.numFiles,
+      testPattern,
+      collapsedGroups,
+    ],
   );
+
+  function updateSettings(next: AppSettings) {
+    const discardChanged = next.discardPath !== settings.discardPath;
+    const sortMetaChanged =
+      next.sortField !== settings.sortField || next.sortDir !== settings.sortDir;
+    setSettings(next);
+    // Re-sort loaded results when discard path toggles, or when a non-random
+    // sort field/dir changes. Switching to Random still needs Apply to reshuffle.
+    if (
+      hasApplied &&
+      (discardChanged || (sortMetaChanged && next.sortField !== "random"))
+    ) {
+      setFiles((prev) =>
+        sortFileRecords(prev, next.sortField, next.sortDir, next.discardPath),
+      );
+    }
+  }
 
   const selectedRow = rows.find((r) => r.id === selectedId) ?? null;
 
@@ -313,12 +426,40 @@ export default function App() {
 
   async function openSelectedPlaylist() {
     const items = rowsToPlaylistItems(rows);
-    if (items.length === 0) return;
+    if (items.length === 0 || moving) return;
     try {
       await api.openPlaylist(items);
       setStatusMessage("Opened MPC playlist");
     } catch (e) {
       setStatusMessage(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function movePlaylistFiles() {
+    const paths = playlistFilePaths(rows);
+    if (paths.length === 0 || moving) return;
+    setBulkOpen(false);
+    try {
+      const destination = await api.pickFolder("Move playlist files to");
+      if (!destination) return;
+      setMoving(true);
+      setStatusMessage(`Moving ${paths.length} files…`);
+      const result = await api.moveFiles(paths, destination);
+      if (result.renames.length > 0) {
+        const map = new Map(result.renames.map((r) => [r.from, r.to]));
+        const remap = (list: FileRecord[]) =>
+          list.map((file) => {
+            const to = map.get(file.path);
+            return to ? { ...file, path: to } : file;
+          });
+        setFiles((prev) => remap(prev));
+        setGlobalSearchFiles((prev) => (prev ? remap(prev) : prev));
+      }
+      setStatusMessage(formatMoveStatus(result));
+    } catch (e) {
+      setStatusMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMoving(false);
     }
   }
 
@@ -411,6 +552,8 @@ export default function App() {
   const testInvalid = Boolean(
     testPattern.trim() && compileUserPattern(testPattern.trim()).ok === false,
   );
+  const playlistItems = rowsToPlaylistItems(rows);
+  const playlistPaths = playlistFilePaths(rows);
 
   return (
     <div className={`app-shell ${leftPaneOpen ? "" : "left-collapsed"}`}>
@@ -419,7 +562,7 @@ export default function App() {
           settings={settings}
           applying={applying}
           settingsOpen={settingsOpen}
-          onChange={setSettings}
+          onChange={updateSettings}
           onIncludeChange={(includeRegexes) =>
             setSettings({ ...settings, includeRegexes })
           }
@@ -469,6 +612,7 @@ export default function App() {
                 <h1 style={{ margin: 0, fontSize: 15 }}>Results</h1>
                 <div className="count">{countLabel}</div>
                 {queryError && <p className="error-text">{queryError}</p>}
+                {statusMessage && <p className="status-text">{statusMessage}</p>}
               </div>
               <div className="results-header-actions">
                 {!leftPaneOpen && (
@@ -493,9 +637,9 @@ export default function App() {
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={rowsToPlaylistItems(rows).length === 0}
+                  disabled={playlistItems.length === 0 || moving}
                   title={
-                    rowsToPlaylistItems(rows).length === 0
+                    playlistItems.length === 0
                       ? "Results list is empty"
                       : "Open playlist in MPC"
                   }
@@ -503,28 +647,59 @@ export default function App() {
                 >
                   Open
                 </button>
+                <div className="bulk-actions" ref={bulkRef}>
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={moving}
+                    aria-haspopup="menu"
+                    aria-expanded={bulkOpen}
+                    onClick={() => setBulkOpen((open) => !open)}
+                  >
+                    {moving ? "Moving…" : "Bulk actions"}
+                  </button>
+                  {bulkOpen && !moving && (
+                    <div className="bulk-actions-menu" role="menu">
+                      <button
+                        type="button"
+                        className="bulk-actions-item"
+                        role="menuitem"
+                        disabled={playlistPaths.length === 0}
+                        title={
+                          playlistPaths.length === 0
+                            ? "No files in the playlist"
+                            : "Move playlist files into a folder"
+                        }
+                        onClick={() => void movePlaylistFiles()}
+                      >
+                        Move
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            {selectedRow && (
-              <div className="selection-line" title={selectionPath(selectedRow)}>
-                Selected: <strong>#{selectionIndex(selectedRow)}</strong>{" "}
-                {truncateMiddle(selectionPath(selectedRow), 100)}
-              </div>
-            )}
-
-            <div className="results-hint">
-              Double-click or Enter opens a file. # matches MPC playlist order.
+            <div
+              className={`selection-line${selectedRow ? " has-selection" : ""}`}
+              title={selectedRow ? selectionPath(selectedRow) : undefined}
+            >
+              {selectedRow && (
+                <>
+                  Selected: <strong>#{selectionIndex(selectedRow)}</strong>{" "}
+                  {truncateMiddle(selectionPath(selectedRow), 100)}
+                </>
+              )}
             </div>
 
             <div className="test-bar">
               <label htmlFor="test-pattern">
-                Test pattern (full path) — use + for AND (any order)
+                Test pattern (full path) — + AND, !term exclude (e.g. abc+ght+!xyz)
               </label>
               <input
                 id="test-pattern"
                 className="text grow mono"
-                placeholder="moh+mon+aha"
+                placeholder="moh+mon+!aha"
                 value={testPattern}
                 onChange={(e) => setTestPattern(e.target.value)}
               />
@@ -553,6 +728,21 @@ export default function App() {
               >
                 + Ignore
               </button>
+              <label
+                className="inline"
+                title="Search the full catalog, ignoring include/ignore patterns"
+              >
+                <input
+                  type="checkbox"
+                  checked={testGlobalSearch}
+                  onChange={(e) => setTestGlobalSearch(e.target.checked)}
+                  disabled={!hasApplied}
+                />
+                Global search
+              </label>
+              {testGlobalSearch && testPattern.trim() && !globalSearchFiles && (
+                <span className="hint">Loading catalog…</span>
+              )}
               {testError && (
                 <p className="error-text" style={{ width: "100%" }}>
                   {testError}

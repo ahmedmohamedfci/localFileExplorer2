@@ -39,6 +39,11 @@ export type AppSettings = {
    */
   discardPath: boolean;
   splitBySearch: boolean;
+  /**
+   * Playlist size cap. 0 = no limit.
+   * With split by search, this many files in each section; otherwise the whole playlist.
+   */
+  numFiles: number;
   deepScan: boolean;
   /** Catalog SQLite path (absolute, or relative to data dir). */
   databasePath: string;
@@ -72,6 +77,26 @@ export type PlaylistItem = {
   path: string;
   isDelimiter?: boolean;
 };
+
+export type MovedPath = {
+  from: string;
+  to: string;
+};
+
+export type MoveFilesResult = {
+  destination: string;
+  moved: number;
+  skipped: number;
+  failed: string[];
+  renames: MovedPath[];
+};
+
+/** 0 means no playlist cap. Non-integers and negatives collapse to 0. */
+export function clampNumFiles(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(1_000_000, Math.floor(n));
+}
 
 export type InitResponse = {
   settings: AppSettings;
@@ -160,6 +185,7 @@ export function defaultSettings(): AppSettings {
     sortDir: "asc",
     discardPath: false,
     splitBySearch: false,
+    numFiles: 0,
     deepScan: false,
     databasePath: "",
     tableColumns: DEFAULT_TABLE_COLUMNS.map((c) => ({ ...c })),
@@ -197,6 +223,7 @@ export function hydrateSettings(raw: AppSettings): AppSettings {
     ...raw,
     contextName: typeof raw.contextName === "string" ? raw.contextName : "",
     discardPath: Boolean(raw.discardPath),
+    numFiles: clampNumFiles(raw.numFiles),
     tableColumns: normalizeTableColumns(raw.tableColumns),
     ui: hydrateUi(raw.ui),
   };

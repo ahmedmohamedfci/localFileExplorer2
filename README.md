@@ -55,7 +55,7 @@ The same “How to run & data layout” text is available in-app under **Setting
 ## Architecture
 
 - **Rust (Tauri)**: SQLite catalog, recursive scan (incremental + deep), playlist write, open file/MPC, folder picker. Kept lean for startup and I/O.
-- **JavaScript/React**: UI, pattern language (`+` AND, flexible substrings), live test filter, split-by-search grouping, formatting, settings orchestration.
+- **JavaScript/React**: UI, pattern language (`+` AND, `!term` exclude, flexible substrings), live test filter, split-by-search grouping, formatting, settings orchestration.
 
 ## Develop
 

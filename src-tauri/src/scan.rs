@@ -405,12 +405,10 @@ pub fn filter_and_sort(
         "random" => {
             let mut state =
                 now_secs().to_bits() ^ (out.len() as u64).wrapping_mul(0x9e3779b97f4a7c15);
-            for i in (1..out.len()).rev() {
-                state = state
-                    .wrapping_mul(6364136223846793005)
-                    .wrapping_add(1);
-                let j = (state >> 33) as usize % (i + 1);
-                out.swap(i, j);
+            shuffle_records(&mut out, &mut state);
+            // discard_path: cluster same file names together while keeping group order random
+            if discard_path {
+                cluster_by_file_name(&mut out, &mut state);
             }
         }
         field => {
@@ -428,25 +426,81 @@ pub fn filter_and_sort(
     Ok(out)
 }
 
-fn compile_clauses(clauses: &[crate::models::PatternClause]) -> AppResult<Vec<Vec<Regex>>> {
+struct CompiledClause {
+    positive: Vec<Regex>,
+    negative: Vec<Regex>,
+}
+
+fn compile_clauses(clauses: &[crate::models::PatternClause]) -> AppResult<Vec<CompiledClause>> {
     let mut out = Vec::new();
     for clause in clauses {
-        let mut terms = Vec::new();
+        let mut positive = Vec::new();
         for term in &clause.terms {
             if term.trim().is_empty() {
                 continue;
             }
-            terms.push(Regex::new(term)?);
+            positive.push(Regex::new(term)?);
         }
-        if !terms.is_empty() {
-            out.push(terms);
+        let mut negative = Vec::new();
+        for term in &clause.not_terms {
+            if term.trim().is_empty() {
+                continue;
+            }
+            negative.push(Regex::new(term)?);
+        }
+        if !positive.is_empty() || !negative.is_empty() {
+            out.push(CompiledClause { positive, negative });
         }
     }
     Ok(out)
 }
 
-fn clause_matches(terms: &[Regex], path: &str) -> bool {
-    terms.iter().all(|re| re.is_match(path))
+fn clause_matches(clause: &CompiledClause, path: &str) -> bool {
+    clause.positive.iter().all(|re| re.is_match(path))
+        && clause.negative.iter().all(|re| !re.is_match(path))
+}
+
+fn shuffle_records(out: &mut [FileRecord], state: &mut u64) {
+    for i in (1..out.len()).rev() {
+        *state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1);
+        let j = (*state >> 33) as usize % (i + 1);
+        out.swap(i, j);
+    }
+}
+
+/// Group files that share the same file name; shuffle group order; path-order within group.
+fn cluster_by_file_name(out: &mut Vec<FileRecord>, state: &mut u64) {
+    if out.len() <= 1 {
+        return;
+    }
+    use std::collections::HashMap;
+    let mut groups: HashMap<String, Vec<FileRecord>> = HashMap::new();
+    let mut order: Vec<String> = Vec::new();
+    for f in out.drain(..) {
+        let key = file_name_of(&f.path);
+        if !groups.contains_key(&key) {
+            order.push(key.clone());
+        }
+        groups.entry(key).or_default().push(f);
+    }
+    shuffle_keys(&mut order, state);
+    for key in order {
+        let mut group = groups.remove(&key).unwrap_or_default();
+        group.sort_by(|a, b| compare_paths(&a.path, &b.path));
+        out.append(&mut group);
+    }
+}
+
+fn shuffle_keys(keys: &mut [String], state: &mut u64) {
+    for i in (1..keys.len()).rev() {
+        *state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1);
+        let j = (*state >> 33) as usize % (i + 1);
+        keys.swap(i, j);
+    }
 }
 
 fn compare_field(
