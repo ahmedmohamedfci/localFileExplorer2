@@ -210,6 +210,10 @@ pub struct QueryRequest {
     pub sort_dir: String,
     #[serde(default)]
     pub discard_path: bool,
+    /// Cap results after filter+sort. 0 = no limit.
+    /// When `split_by_search` is true the client applies per-section caps, so leave 0.
+    #[serde(default)]
+    pub limit: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

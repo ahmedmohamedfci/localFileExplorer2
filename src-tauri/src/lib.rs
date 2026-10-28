@@ -25,6 +25,10 @@ fn request_shutdown(app: &tauri::AppHandle) {
             flag.store(true, Ordering::SeqCst);
         }
         *state.scanning.lock() = false;
+        if let Some(flag) = state.move_cancel.lock().as_ref() {
+            flag.store(true, Ordering::SeqCst);
+        }
+        *state.moving.lock() = false;
     }
 }
 
@@ -55,7 +59,8 @@ pub fn run() {
             commands::get_scan_progress,
             commands::open_file,
             commands::open_playlist,
-            commands::move_files,
+            commands::start_move_files,
+            commands::cancel_move_files,
             commands::pick_folder,
             commands::pick_database_path,
             commands::export_settings,

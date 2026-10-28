@@ -5,7 +5,6 @@ import { BrowserSettingsGate } from "./components/BrowserSettingsGate";
 import { SettingsPanel } from "./components/ControlsPane";
 import { FileFilterPane } from "./components/FileFilterPane";
 import { ResultsTable, type TableSortField } from "./components/ResultsTable";
-import { sortFileRecords } from "./lib/sort";
 import * as api from "./lib/api";
 import { compilePatternList, compileUserPattern, validatePattern } from "./lib/patterns";
 import { truncateMiddle } from "./lib/format";
@@ -24,6 +23,7 @@ import {
   type PatternEntry,
   type ResultRow,
   type MoveFilesResult,
+  type MoveProgress,
   type ScanProgress,
   type UiLayout,
 } from "./lib/types";
@@ -86,10 +86,13 @@ export default function App() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [queryError, setQueryError] = useState<string | null>(null);
   const [moving, setMoving] = useState(false);
+  const [moveProgress, setMoveProgress] = useState<MoveProgress | null>(null);
   const [bulkOpen, setBulkOpen] = useState(false);
   const bulkRef = useRef<HTMLDivElement>(null);
   const autoUpdateStarted = useRef(false);
   const lastScanPhase = useRef<string>("idle");
+  const skipAutoApply = useRef(true);
+  const autoApplyTimer = useRef<number | null>(null);
   const [hostUrl, setHostUrl] = useState<string | null>(null);
 
   const leftPaneOpen = settings.ui.leftPaneOpen;
@@ -226,9 +229,16 @@ export default function App() {
         syncWindowTitle(hydrated.contextName);
         setHostUrl(await api.getHostUrl());
         setReady(true);
-        unlisten = await listen<ScanProgress>("scan-progress", (event) => {
+        const unlistenScan = await listen<ScanProgress>("scan-progress", (event) => {
           applyScanProgress(event.payload);
         });
+        const unlistenMove = await listen<MoveProgress>("move-progress", (event) => {
+          applyMoveProgress(event.payload);
+        });
+        unlisten = () => {
+          unlistenScan();
+          unlistenMove();
+        };
         startBackgroundDbUpdate(hydrated);
       } catch (e) {
         setBootError(e instanceof Error ? e.message : String(e));
@@ -260,19 +270,26 @@ export default function App() {
   }, [ready]);
 
   useEffect(() => {
-    if (!testGlobalSearch || !hasApplied) {
+    if (!testGlobalSearch || !hasApplied || !testPattern.trim()) {
       setGlobalSearchFiles(null);
       return;
     }
     let cancelled = false;
     (async () => {
       try {
+        // Query only matches for the test pattern — never load the full catalog into JS.
+        const compiled = compileUserPattern(testPattern.trim());
+        if (!compiled.ok) {
+          if (!cancelled) setGlobalSearchFiles([]);
+          return;
+        }
         const result = await api.queryFiles({
-          includeClauses: [],
+          includeClauses: [compiled.clause],
           ignoreClauses: [],
           sortField: settings.sortField,
           sortDir: settings.sortDir,
           discardPath: settings.discardPath,
+          limit: settings.splitBySearch ? 0 : settings.numFiles,
         });
         if (!cancelled) setGlobalSearchFiles(result);
       } catch {
@@ -284,17 +301,18 @@ export default function App() {
     };
   }, [
     testGlobalSearch,
+    testPattern,
     hasApplied,
     catalogCount,
     settings.sortField,
     settings.sortDir,
     settings.discardPath,
+    settings.numFiles,
+    settings.splitBySearch,
   ]);
 
-  const filesForDisplay =
-    testGlobalSearch && testPattern.trim()
-      ? (globalSearchFiles ?? [])
-      : files;
+  const globalSearchActive = Boolean(testGlobalSearch && testPattern.trim());
+  const filesForDisplay = globalSearchActive ? (globalSearchFiles ?? []) : files;
 
   const { rows, displayedFileCount, testError } = useMemo(
     () =>
@@ -302,8 +320,10 @@ export default function App() {
         files: filesForDisplay,
         includePatterns: settings.includeRegexes,
         splitBySearch: settings.splitBySearch,
-        numFiles: settings.numFiles,
-        testPattern,
+        // Limit already applied server-side when not split; with split, still cap per section here.
+        numFiles: settings.splitBySearch ? settings.numFiles : 0,
+        // Global search already filtered on the server — don't filter again client-side.
+        testPattern: globalSearchActive ? "" : testPattern,
         collapsedGroups,
       }),
     [
@@ -312,24 +332,39 @@ export default function App() {
       settings.splitBySearch,
       settings.numFiles,
       testPattern,
+      globalSearchActive,
       collapsedGroups,
     ],
   );
 
   function updateSettings(next: AppSettings) {
-    const discardChanged = next.discardPath !== settings.discardPath;
-    const sortMetaChanged =
-      next.sortField !== settings.sortField || next.sortDir !== settings.sortDir;
     setSettings(next);
-    // Re-sort loaded results when discard path toggles, or when a non-random
-    // sort field/dir changes. Switching to Random still needs Apply to reshuffle.
-    if (
-      hasApplied &&
-      (discardChanged || (sortMetaChanged && next.sortField !== "random"))
-    ) {
-      setFiles((prev) =>
-        sortFileRecords(prev, next.sortField, next.sortDir, next.discardPath),
-      );
+  }
+
+  function applyMoveProgress(next: MoveProgress) {
+    setMoveProgress(next);
+    setMoving(next.phase === "moving");
+    if (next.phase === "done" || next.phase === "cancelled" || next.phase === "error") {
+      if (next.result?.renames.length) {
+        const map = new Map(next.result.renames.map((r) => [r.from, r.to]));
+        const remap = (list: FileRecord[]) =>
+          list.map((file) => {
+            const to = map.get(file.path);
+            return to ? { ...file, path: to } : file;
+          });
+        setFiles((prev) => remap(prev));
+        setGlobalSearchFiles((prev) => (prev ? remap(prev) : prev));
+      }
+      if (next.phase === "error") {
+        setStatusMessage(next.message);
+      } else if (next.result) {
+        setStatusMessage(
+          next.phase === "cancelled"
+            ? `Move stopped. ${formatMoveStatus(next.result)}`
+            : formatMoveStatus(next.result),
+        );
+      }
+      window.setTimeout(() => setMoveProgress(null), 400);
     }
   }
 
@@ -359,12 +394,15 @@ export default function App() {
       };
       const saved = await api.saveSettings(toSave);
       setSettings(hydrateSettings(saved));
+      // Server returns only matches (and optionally a hard cap). Never the full catalog.
       const result = await api.queryFiles({
         includeClauses: compiledInclude.clauses,
         ignoreClauses: compiledIgnore.clauses,
         sortField: saved.sortField,
         sortDir: saved.sortDir,
         discardPath: saved.discardPath,
+        // With split-by-search, per-section caps are applied when building rows.
+        limit: saved.splitBySearch ? 0 : saved.numFiles,
       });
       setFiles(result);
       setHasApplied(true);
@@ -378,6 +416,50 @@ export default function App() {
       setLoadingLabel(false);
     }
   }
+
+  // Stable signature so saving settings after apply doesn't retrigger (new array refs).
+  const filterApplyKey = useMemo(
+    () =>
+      JSON.stringify({
+        includeRegexes: settings.includeRegexes,
+        ignoreRegexes: settings.ignoreRegexes,
+        sortField: settings.sortField,
+        sortDir: settings.sortDir,
+        discardPath: settings.discardPath,
+        splitBySearch: settings.splitBySearch,
+        numFiles: settings.numFiles,
+      }),
+    [
+      settings.includeRegexes,
+      settings.ignoreRegexes,
+      settings.sortField,
+      settings.sortDir,
+      settings.discardPath,
+      settings.splitBySearch,
+      settings.numFiles,
+    ],
+  );
+
+  // Auto-apply when filter/sort controls change (debounced). Skip the initial mount.
+  useEffect(() => {
+    if (!ready) return;
+    if (skipAutoApply.current) {
+      skipAutoApply.current = false;
+      return;
+    }
+    if (autoApplyTimer.current != null) {
+      window.clearTimeout(autoApplyTimer.current);
+    }
+    autoApplyTimer.current = window.setTimeout(() => {
+      void applyFilter(settings);
+    }, 350);
+    return () => {
+      if (autoApplyTimer.current != null) {
+        window.clearTimeout(autoApplyTimer.current);
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, filterApplyKey]);
 
   async function saveAndScan() {
     try {
@@ -461,23 +543,32 @@ export default function App() {
       const destination = await api.pickFolder("Move playlist files to");
       if (!destination) return;
       setMoving(true);
+      setMoveProgress({
+        phase: "moving",
+        message: `Moving 0 / ${paths.length}…`,
+        current: 0,
+        total: paths.length,
+        currentFile: "",
+      });
       setStatusMessage(`Moving ${paths.length} files…`);
-      const result = await api.moveFiles(paths, destination);
-      if (result.renames.length > 0) {
-        const map = new Map(result.renames.map((r) => [r.from, r.to]));
-        const remap = (list: FileRecord[]) =>
-          list.map((file) => {
-            const to = map.get(file.path);
-            return to ? { ...file, path: to } : file;
-          });
-        setFiles((prev) => remap(prev));
-        setGlobalSearchFiles((prev) => (prev ? remap(prev) : prev));
+      if (isTauri()) {
+        await api.startMoveFiles(paths, destination);
+        return;
       }
-      setStatusMessage(formatMoveStatus(result));
+      // Browser host: synchronous fallback (no cancel UI channel yet).
+      const result = await api.moveFiles(paths, destination);
+      applyMoveProgress({
+        phase: "done",
+        message: formatMoveStatus(result),
+        current: paths.length,
+        total: paths.length,
+        currentFile: "",
+        result,
+      });
     } catch (e) {
-      setStatusMessage(e instanceof Error ? e.message : String(e));
-    } finally {
       setMoving(false);
+      setMoveProgress(null);
+      setStatusMessage(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -507,14 +598,8 @@ export default function App() {
     const same = settings.sortField === field;
     const nextDir =
       same && settings.sortDir === "asc" ? ("desc" as const) : ("asc" as const);
-    const next = { ...settings, sortField: field, sortDir: nextDir };
-    setSettings(next);
-    if (hasApplied) {
-      setFiles((prev) =>
-        sortFileRecords(prev, field, nextDir, next.discardPath),
-      );
-      void api.saveSettings(next);
-    }
+    // Auto-apply debounces a fresh server query (correct for Random reshuffles too).
+    setSettings({ ...settings, sortField: field, sortDir: nextDir });
   }
 
   function onTableColumnsChange(columns: TableColumnConfig[]) {
@@ -577,6 +662,57 @@ export default function App() {
 
   return (
     <div className={`app-shell ${leftPaneOpen ? "" : "left-collapsed"}`}>
+      {moveProgress && (
+        <div className="move-dialog-backdrop" role="presentation">
+          <div
+            className="move-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="move-dialog-title"
+          >
+            <h2 id="move-dialog-title">Moving files</h2>
+            <p className="move-dialog-status">{moveProgress.message}</p>
+            <div className="move-dialog-bar">
+              <div
+                className="move-dialog-bar-fill"
+                style={{
+                  width:
+                    moveProgress.total > 0
+                      ? `${Math.min(
+                          100,
+                          (100 * moveProgress.current) / moveProgress.total,
+                        )}%`
+                      : "0%",
+                }}
+              />
+            </div>
+            <p className="move-dialog-file mono" title={moveProgress.currentFile}>
+              {moveProgress.currentFile
+                ? truncateMiddle(moveProgress.currentFile, 72)
+                : "\u00a0"}
+            </p>
+            <div className="move-dialog-actions">
+              {moveProgress.phase === "moving" ? (
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => void api.cancelMoveFiles()}
+                >
+                  Stop
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => setMoveProgress(null)}
+                >
+                  Close
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {leftPaneOpen ? (
         <FileFilterPane
           settings={settings}

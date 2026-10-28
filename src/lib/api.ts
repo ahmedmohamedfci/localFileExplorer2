@@ -51,11 +51,13 @@ export function getCatalogCount(): Promise<number> {
 }
 
 export function queryFiles(args: {
-  includeClauses: { terms: string[] }[];
-  ignoreClauses: { terms: string[] }[];
+  includeClauses: { terms: string[]; notTerms?: string[] }[];
+  ignoreClauses: { terms: string[]; notTerms?: string[] }[];
   sortField: string;
   sortDir: string;
   discardPath?: boolean;
+  /** 0 = no limit. Applied after filter+sort on the server. */
+  limit?: number;
 }): Promise<FileRecord[]> {
   if (isTauri()) {
     return invoke("query_files", {
@@ -65,6 +67,7 @@ export function queryFiles(args: {
         sortField: args.sortField,
         sortDir: args.sortDir,
         discardPath: args.discardPath ?? false,
+        limit: args.limit ?? 0,
       },
     });
   }
@@ -115,11 +118,29 @@ export function pickFolder(title?: string): Promise<string | null> {
   return requireHostOrTauri();
 }
 
+/** Start a background move. Progress arrives via the `move-progress` event. */
+export function startMoveFiles(
+  paths: string[],
+  destination: string,
+): Promise<void> {
+  if (isTauri()) return invoke("start_move_files", { paths, destination });
+  // Browser host still runs synchronously (no WS progress yet).
+  if (isBrowserHost()) {
+    return host.hostMoveFiles(paths, destination).then(() => undefined);
+  }
+  return requireHostOrTauri();
+}
+
+export function cancelMoveFiles(): Promise<void> {
+  if (isTauri()) return invoke("cancel_move_files");
+  return Promise.resolve();
+}
+
+/** @deprecated Prefer startMoveFiles + move-progress for cancelable bulk moves. */
 export function moveFiles(
   paths: string[],
   destination: string,
 ): Promise<MoveFilesResult> {
-  if (isTauri()) return invoke("move_files", { paths, destination });
   if (isBrowserHost()) return host.hostMoveFiles(paths, destination);
   return requireHostOrTauri();
 }

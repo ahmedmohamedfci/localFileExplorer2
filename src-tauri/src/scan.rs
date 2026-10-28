@@ -407,17 +407,19 @@ fn emit(
     sink(progress);
 }
 
-pub fn filter_and_sort(
+pub fn filter_and_sort_limited(
     files: Vec<FileRecord>,
     include_clauses: &[crate::models::PatternClause],
     ignore_clauses: &[crate::models::PatternClause],
     sort_field: &str,
     sort_dir: &str,
     discard_path: bool,
+    limit: u32,
 ) -> AppResult<Vec<FileRecord>> {
     let includes = compile_clauses(include_clauses)?;
     let ignores = compile_clauses(ignore_clauses)?;
 
+    // Keep only matches — never hand the full catalog to the UI.
     let mut out: Vec<FileRecord> = files
         .into_iter()
         .filter(|f| {
@@ -452,6 +454,10 @@ pub fn filter_and_sort(
                 }
             });
         }
+    }
+
+    if limit > 0 && (out.len() as u32) > limit {
+        out.truncate(limit as usize);
     }
 
     Ok(out)
@@ -559,7 +565,7 @@ fn compare_field(
         }
         "birthtime" => cmp_f64(a.birthtime, b.birthtime)
             .then_with(|| compare_path_aware(&a.path, &b.path, discard_path)),
-        "durationMs" | "duration" => cmp_opt_f64(a.duration_ms, b.duration_ms)
+        "durationMs" | "duration" => cmp_f64(a.duration_ms.unwrap_or(0.0), b.duration_ms.unwrap_or(0.0))
             .then_with(|| compare_path_aware(&a.path, &b.path, discard_path)),
         "indexedAt" => cmp_f64(a.indexed_at, b.indexed_at)
             .then_with(|| compare_path_aware(&a.path, &b.path, discard_path)),
@@ -627,11 +633,3 @@ fn cmp_f64(a: f64, b: f64) -> std::cmp::Ordering {
     a.partial_cmp(&b).unwrap_or(std::cmp::Ordering::Equal)
 }
 
-fn cmp_opt_f64(a: Option<f64>, b: Option<f64>) -> std::cmp::Ordering {
-    match (a, b) {
-        (Some(x), Some(y)) => cmp_f64(x, y),
-        (Some(_), None) => std::cmp::Ordering::Less,
-        (None, Some(_)) => std::cmp::Ordering::Greater,
-        (None, None) => std::cmp::Ordering::Equal,
-    }
-}

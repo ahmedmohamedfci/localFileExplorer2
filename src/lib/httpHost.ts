@@ -83,11 +83,12 @@ export async function hostGetCatalogCount(): Promise<number> {
 }
 
 export async function hostQueryFiles(args: {
-  includeClauses: { terms: string[] }[];
-  ignoreClauses: { terms: string[] }[];
+  includeClauses: { terms: string[]; notTerms?: string[] }[];
+  ignoreClauses: { terms: string[]; notTerms?: string[] }[];
   sortField: string;
   sortDir: string;
   discardPath?: boolean;
+  limit?: number;
 }): Promise<FileRecord[]> {
   return hostFetch<FileRecord[]>("/api/query", {
     method: "POST",
@@ -97,6 +98,7 @@ export async function hostQueryFiles(args: {
       sortField: args.sortField,
       sortDir: args.sortDir,
       discardPath: args.discardPath ?? false,
+      limit: args.limit ?? 0,
     },
   });
 }

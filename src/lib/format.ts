@@ -14,8 +14,9 @@ function trimNum(n: number): string {
 }
 
 export function formatDuration(ms: number | null | undefined): string {
-  if (ms == null || !Number.isFinite(ms) || ms < 0) return "—";
-  const totalSec = Math.floor(ms / 1000);
+  // Missing duration sorts/displays as 0 — never "—" (that floated to the top on desc).
+  const value = ms == null || !Number.isFinite(ms) || ms < 0 ? 0 : ms;
+  const totalSec = Math.floor(value / 1000);
   const s = totalSec % 60;
   const totalMin = Math.floor(totalSec / 60);
   const m = totalMin % 60;

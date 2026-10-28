@@ -11,7 +11,6 @@ use crate::models::{AppError, AppResult, AppSettings, InitResponse, PlaylistItem
 use crate::paths::{self, path_to_string};
 use crate::move_files;
 use crate::playlist::{open_path, write_and_open_playlist};
-use crate::scan::filter_and_sort;
 use crate::session::{
     cancel_session_scan, session_scan_progress, start_session_scan, SessionManager,
 };
@@ -153,13 +152,14 @@ fn run_server(sessions: Arc<SessionManager>) -> AppResult<()> {
                 let request: QueryRequest = parse_json_body(&body)?;
                 session.with_paths(|| {
                     let files = CatalogDb::open()?.query_all()?;
-                    filter_and_sort(
+                    crate::scan::filter_and_sort_limited(
                         files,
                         &request.include_clauses,
                         &request.ignore_clauses,
                         &request.sort_field,
                         &request.sort_dir,
                         request.discard_path,
+                        request.limit,
                     )
                 })
             }),
@@ -202,7 +202,9 @@ fn run_server(sessions: Arc<SessionManager>) -> AppResult<()> {
                     destination: String,
                 }
                 let payload: Body = parse_json_body(&body)?;
-                session.with_paths(|| move_files::move_files_to_dir(&payload.paths, &payload.destination))
+                session.with_paths(|| {
+                    move_files::move_files_to_dir(&payload.paths, &payload.destination, None, None)
+                })
             }),
             (Method::Post, "/api/dialog/pick-folder") => {
                 #[derive(Deserialize, Default)]

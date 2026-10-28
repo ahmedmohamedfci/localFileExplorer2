@@ -9,6 +9,8 @@ pub struct AppState {
     pub scanning: Mutex<bool>,
     pub cancel: Mutex<Option<Arc<AtomicBool>>>,
     pub last_progress: Mutex<ScanProgress>,
+    pub moving: Mutex<bool>,
+    pub move_cancel: Mutex<Option<Arc<AtomicBool>>>,
 }
 
 impl Default for AppState {
@@ -24,6 +26,8 @@ impl Default for AppState {
                 files: 0,
                 current_folder: String::new(),
             }),
+            moving: Mutex::new(false),
+            move_cancel: Mutex::new(None),
         }
     }
 }

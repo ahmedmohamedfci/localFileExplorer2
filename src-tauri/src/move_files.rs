@@ -2,6 +2,8 @@ use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use serde::Serialize;
 
@@ -26,27 +28,91 @@ pub struct MoveFilesResult {
     pub renames: Vec<MovedPath>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveProgress {
+    pub phase: String,
+    pub message: String,
+    pub current: u64,
+    pub total: u64,
+    pub current_file: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result: Option<MoveFilesResult>,
+}
+
 /// Move each file into `destination`, keeping the file name. Name clashes get `name (2).ext`.
-pub fn move_files_to_dir(paths: &[String], destination: &str) -> AppResult<MoveFilesResult> {
+/// Honors `cancel` between files so the UI can stop a long bulk move.
+pub fn move_files_to_dir(
+    paths: &[String],
+    destination: &str,
+    cancel: Option<Arc<AtomicBool>>,
+    on_progress: Option<&dyn Fn(MoveProgress)>,
+) -> AppResult<MoveFilesResult> {
     let dest_dir = PathBuf::from(destination.trim());
     if destination.trim().is_empty() || !dest_dir.is_dir() {
-        return Err(AppError::Message(
-            "Destination is not a folder".into(),
-        ));
+        return Err(AppError::Message("Destination is not a folder".into()));
     }
 
+    let work: Vec<String> = {
+        let mut seen = HashSet::new();
+        paths
+            .iter()
+            .map(|p| p.trim().to_string())
+            .filter(|p| !p.is_empty() && seen.insert(p.clone()))
+            .collect()
+    };
+    let total = work.len() as u64;
+
+    let emit = |phase: &str, message: &str, current: u64, current_file: &str, result: Option<MoveFilesResult>| {
+        if let Some(cb) = on_progress {
+            cb(MoveProgress {
+                phase: phase.into(),
+                message: message.into(),
+                current,
+                total,
+                current_file: current_file.into(),
+                result,
+            });
+        }
+    };
+
+    emit("moving", "Starting…", 0, "", None);
+
     let db = CatalogDb::open()?;
-    let mut seen = HashSet::new();
     let mut moved = 0u32;
     let mut skipped = 0u32;
     let mut failed = Vec::new();
     let mut renames = Vec::new();
 
-    for raw in paths {
-        let path = raw.trim();
-        if path.is_empty() || !seen.insert(path.to_string()) {
-            continue;
+    for (index, path) in work.iter().enumerate() {
+        if cancel
+            .as_ref()
+            .is_some_and(|c| c.load(Ordering::Relaxed))
+        {
+            let result = MoveFilesResult {
+                destination: path_to_string(&dest_dir),
+                moved,
+                skipped,
+                failed,
+                renames,
+            };
+            emit(
+                "cancelled",
+                &format!("Stopped after moving {moved} file(s)"),
+                index as u64,
+                "",
+                Some(result.clone()),
+            );
+            return Ok(result);
         }
+
+        emit(
+            "moving",
+            &format!("Moving {} / {total}…", index + 1),
+            index as u64,
+            path,
+            None,
+        );
 
         let from_path = PathBuf::from(path);
         let Some(file_name) = from_path.file_name().map(|n| n.to_os_string()) else {
@@ -92,13 +158,21 @@ pub fn move_files_to_dir(paths: &[String], destination: &str) -> AppResult<MoveF
         return Err(AppError::Message("No files to move".into()));
     }
 
-    Ok(MoveFilesResult {
+    let result = MoveFilesResult {
         destination: path_to_string(&dest_dir),
         moved,
         skipped,
         failed,
         renames,
-    })
+    };
+    emit(
+        "done",
+        &format!("Moved {moved} file(s)"),
+        total,
+        "",
+        Some(result.clone()),
+    );
+    Ok(result)
 }
 
 fn next_available(dir: &Path, file_name: &OsStr) -> AppResult<PathBuf> {

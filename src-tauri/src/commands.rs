@@ -11,7 +11,7 @@ use crate::models::{
 };
 use crate::paths::{self, path_to_string};
 use crate::playlist::{clear_playlist, open_path, write_and_open_playlist};
-use crate::scan::{filter_and_sort, run_scan};
+use crate::scan::run_scan;
 use crate::settings::{self, normalize_extensions};
 use crate::state::AppState;
 
@@ -75,13 +75,14 @@ pub fn get_resolved_database_path() -> AppResult<String> {
 #[tauri::command]
 pub fn query_files(request: QueryRequest) -> AppResult<Vec<FileRecord>> {
     let files = CatalogDb::open()?.query_all()?;
-    filter_and_sort(
+    crate::scan::filter_and_sort_limited(
         files,
         &request.include_clauses,
         &request.ignore_clauses,
         &request.sort_field,
         &request.sort_dir,
         request.discard_path,
+        request.limit,
     )
 }
 
@@ -185,8 +186,71 @@ pub fn pick_folder(app: AppHandle, title: Option<String>) -> AppResult<Option<St
 }
 
 #[tauri::command]
-pub fn move_files(paths: Vec<String>, destination: String) -> AppResult<crate::move_files::MoveFilesResult> {
-    crate::move_files::move_files_to_dir(&paths, &destination)
+pub fn start_move_files(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+    destination: String,
+) -> AppResult<()> {
+    {
+        let mut moving = state.moving.lock();
+        if *moving {
+            return Err(AppError::Message("A move is already running".into()));
+        }
+        *moving = true;
+    }
+    let cancel = Arc::new(AtomicBool::new(false));
+    *state.move_cancel.lock() = Some(cancel.clone());
+
+    std::thread::spawn(move || {
+        let emit_done = |app: &AppHandle, progress: crate::move_files::MoveProgress| {
+            let _ = app.emit("move-progress", &progress);
+            if let Some(st) = app.try_state::<AppState>() {
+                *st.moving.lock() = false;
+                *st.move_cancel.lock() = None;
+            }
+        };
+
+        let app_progress = app.clone();
+        let on_progress = move |progress: crate::move_files::MoveProgress| {
+            let terminal = matches!(progress.phase.as_str(), "done" | "cancelled" | "error");
+            let _ = app_progress.emit("move-progress", &progress);
+            if terminal {
+                if let Some(st) = app_progress.try_state::<AppState>() {
+                    *st.moving.lock() = false;
+                    *st.move_cancel.lock() = None;
+                }
+            }
+        };
+
+        if let Err(err) = crate::move_files::move_files_to_dir(
+            &paths,
+            &destination,
+            Some(cancel),
+            Some(&on_progress),
+        ) {
+            emit_done(
+                &app,
+                crate::move_files::MoveProgress {
+                    phase: "error".into(),
+                    message: err.to_string(),
+                    current: 0,
+                    total: paths.len() as u64,
+                    current_file: String::new(),
+                    result: None,
+                },
+            );
+        }
+    });
+    Ok(())
+}
+
+#[tauri::command]
+pub fn cancel_move_files(state: State<'_, AppState>) -> AppResult<()> {
+    if let Some(flag) = state.move_cancel.lock().as_ref() {
+        flag.store(true, Ordering::SeqCst);
+    }
+    Ok(())
 }
 
 #[tauri::command]

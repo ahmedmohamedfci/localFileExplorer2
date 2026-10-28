@@ -130,8 +130,8 @@ function compare(
     case "sizeBytes":
       return a.sizeBytes - b.sizeBytes || comparePathAware(a.path, b.path, discardPath);
     case "durationMs": {
-      const ad = a.durationMs ?? Number.POSITIVE_INFINITY;
-      const bd = b.durationMs ?? Number.POSITIVE_INFINITY;
+      const ad = a.durationMs ?? 0;
+      const bd = b.durationMs ?? 0;
       return ad - bd || comparePathAware(a.path, b.path, discardPath);
     }
     case "mtime":

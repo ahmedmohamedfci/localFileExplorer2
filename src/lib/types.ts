@@ -91,6 +91,15 @@ export type MoveFilesResult = {
   renames: MovedPath[];
 };
 
+export type MoveProgress = {
+  phase: string;
+  message: string;
+  current: number;
+  total: number;
+  currentFile: string;
+  result?: MoveFilesResult;
+};
+
 /** 0 means no playlist cap. Non-integers and negatives collapse to 0. */
 export function clampNumFiles(value: unknown): number {
   const n = typeof value === "number" ? value : Number(value);

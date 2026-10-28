@@ -56,7 +56,7 @@ export function FileFilterPane({
           onClick={onApply}
           disabled={applying}
         >
-          {applying ? "Applying…" : "Apply filter"}
+          {applying ? "Applying…" : "Apply now"}
         </button>
         <button
           type="button"
