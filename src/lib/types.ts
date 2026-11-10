@@ -161,7 +161,7 @@ export const DEFAULT_EXTENSIONS = [
 
 export const SORT_FIELDS = [
   { value: "path", label: "Path" },
-  { value: "name", label: "Name" },
+  { value: "name", label: "Filename" },
   { value: "ext", label: "Extension" },
   { value: "sizeBytes", label: "Size" },
   { value: "durationMs", label: "Duration" },

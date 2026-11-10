@@ -1,7 +1,5 @@
 import type { AppSettings, ScanProgress, UiLayout } from "../lib/types";
 import { truncateMiddle } from "../lib/format";
-import { ColumnOrderList } from "./ColumnOrderList";
-import { PatternList } from "./PatternList";
 
 type Props = {
   settings: AppSettings;
@@ -53,7 +51,7 @@ export function SettingsPanel({
         <div>
           <h1 style={{ margin: 0, fontSize: 15 }}>Settings</h1>
           <div className="count">
-            Scan, roots, extensions, columns, include tabs, data, help
+            Scan, roots, extensions, data
           </div>
         </div>
         <button type="button" className="btn" onClick={onClose}>
@@ -181,58 +179,6 @@ export function SettingsPanel({
           <button
             type="button"
             className="section-toggle"
-            onClick={() => onUiChange({ columnsOpen: !ui.columnsOpen })}
-          >
-            <span className="chevron">{ui.columnsOpen ? "▼" : "▶"}</span>
-            <strong>Result columns</strong>
-          </button>
-          {ui.columnsOpen && (
-            <div className="section-body">
-              <ColumnOrderList
-                columns={settings.tableColumns}
-                onChange={(tableColumns) =>
-                  onChange({ ...settings, tableColumns })
-                }
-              />
-            </div>
-          )}
-        </div>
-
-        <div className="section">
-          <button
-            type="button"
-            className="section-toggle"
-            onClick={() =>
-              onUiChange({ includePatternsOpen: !ui.includePatternsOpen })
-            }
-          >
-            <span className="chevron">
-              {ui.includePatternsOpen ? "▼" : "▶"}
-            </span>
-            <strong>Include tabs &amp; filters</strong>
-          </button>
-          {ui.includePatternsOpen && (
-            <div className="section-body">
-              <PatternList
-                title="Include patterns"
-                hint="Drag to reorder tabs (split-by-search sections). Each row can have its own Filter. Pattern language: x+(Y|Z|A)-S"
-                entries={settings.includeRegexes}
-                onChange={(includeRegexes) =>
-                  onChange({ ...settings, includeRegexes })
-                }
-                open
-                onOpenChange={() => {}}
-                showTabFilters
-                alwaysExpanded
-              />
-            </div>
-          )}
-        </div>
-
-        <div className="section">
-          <button
-            type="button"
-            className="section-toggle"
             onClick={() => onUiChange({ dataOpen: !ui.dataOpen })}
           >
             <span className="chevron">{ui.dataOpen ? "▼" : "▶"}</span>
@@ -309,61 +255,6 @@ export function SettingsPanel({
               <p className="hint">
                 Catalog import upserts by path (primary key): updates existing rows
                 or inserts new ones. Indexed time is kept for paths already in the DB.
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="section">
-          <button
-            type="button"
-            className="section-toggle"
-            onClick={() => onUiChange({ howToOpen: !ui.howToOpen })}
-          >
-            <span className="chevron">{ui.howToOpen ? "▼" : "▶"}</span>
-            <strong>How to run &amp; data layout</strong>
-          </button>
-          {ui.howToOpen && (
-            <div className="section-body">
-              <p className="hint">
-                <strong>Desktop:</strong> run the EXE (or a shortcut). Default layout
-                beside the EXE: <span className="mono">settings.json</span>, catalog DB
-                and playlist under <span className="mono">data\</span>.
-              </p>
-              <p className="hint">
-                <strong>Custom settings file:</strong>
-              </p>
-              <pre className="help-pre">
-                {`local-file-explorer.exe --settings="D:\\x\\settings1.json"
-local-file-explorer.exe -s D:\\x\\settings2.json`}
-              </pre>
-              <p className="hint">
-                Data folder is the parent of that JSON. Use a different{" "}
-                <span className="mono">databasePath</span> in each file if catalogs should
-                stay separate. Playlists are named per settings stem (e.g.{" "}
-                <span className="mono">playlist-settings1.mpcpl</span>).
-              </p>
-              <p className="hint">
-                <strong>Custom data folder</strong> (own{" "}
-                <span className="mono">settings.json</span> + default DB inside):
-              </p>
-              <pre className="help-pre">
-                {`local-file-explorer.exe --data-dir="D:\\profiles\\movies"
-local-file-explorer.exe -d D:\\profiles\\music`}
-              </pre>
-              <p className="hint">
-                Env alternatives: <span className="mono">LFE_SETTINGS</span>,{" "}
-                <span className="mono">LFE_DATA_DIR</span>.
-              </p>
-              <p className="hint">
-                <strong>Browser:</strong> while the desktop app is running, open the
-                loopback host (preferred{" "}
-                <span className="mono">http://127.0.0.1:666/</span>; next instance uses
-                667, 668, …). Link is under <strong>Data &amp; settings</strong> above.
-                In Chrome: drag-drop a settings JSON, or use{" "}
-                <strong>Use desktop app settings</strong> to bind the tab to this
-                process’s settings/DB. Per-tab settings also live in the URL hash (
-                <span className="mono">#s=…</span>).
               </p>
             </div>
           )}

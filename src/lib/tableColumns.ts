@@ -1,9 +1,10 @@
 import type { FileRecord } from "./types";
-import { formatDuration, formatSize, formatTimestamp } from "./format";
+import { fileName, formatDuration, formatSize, formatTimestamp } from "./format";
 
 export type TableColumnId =
   | "index"
   | "path"
+  | "name"
   | "ext"
   | "sizeBytes"
   | "durationMs"
@@ -26,6 +27,7 @@ export const TABLE_COLUMN_META: Record<
 > = {
   index: { label: "#", sortable: false, minWidth: 40 },
   path: { label: "Path", sortable: true, minWidth: 120 },
+  name: { label: "Filename", sortable: true, minWidth: 100 },
   ext: { label: "Ext", sortable: true, minWidth: 48 },
   sizeBytes: { label: "Size", sortable: true, minWidth: 64 },
   durationMs: { label: "Duration", sortable: true, minWidth: 64 },
@@ -38,6 +40,7 @@ export const TABLE_COLUMN_META: Record<
 export const DEFAULT_TABLE_COLUMNS: TableColumnConfig[] = [
   { id: "index", width: 56, visible: true },
   { id: "path", width: 480, visible: true },
+  { id: "name", width: 200, visible: false },
   { id: "ext", width: 64, visible: true },
   { id: "sizeBytes", width: 84, visible: true },
   { id: "durationMs", width: 84, visible: true },
@@ -113,6 +116,8 @@ export function formatCell(
   switch (id) {
     case "path":
       return f.path;
+    case "name":
+      return fileName(f.path);
     case "ext":
       return f.ext;
     case "sizeBytes":

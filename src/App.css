@@ -102,6 +102,7 @@ button:disabled {
 
 .pane-left {
   border-right: 1px solid var(--border);
+  padding-bottom: 20px;
 }
 
 .pane-right {
@@ -147,8 +148,7 @@ button:disabled {
   overflow: auto;
   min-height: 0;
   flex: 1;
-  padding: 12px;
-  margin-bottom: 20px;
+  padding: 12px 12px 20px;
 }
 
 .filter-actions {
@@ -217,11 +217,6 @@ button:disabled {
   font-size: 12px;
   letter-spacing: -2px;
   padding: 0 2px;
-}
-
-.tab-filter-row {
-  margin-top: 4px;
-  padding-left: 28px;
 }
 
 .context-menu {
@@ -597,32 +592,6 @@ textarea {
   border-top: 1px solid var(--border-soft);
 }
 
-.table-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border-bottom: 1px solid var(--border-soft);
-  flex-shrink: 0;
-}
-
-.column-picker {
-  position: relative;
-}
-
-.column-picker-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  z-index: 20;
-  min-width: 180px;
-  padding: 8px 10px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-}
-
 .column-picker-item {
   display: flex;
   width: 100%;
@@ -644,7 +613,7 @@ textarea {
 }
 
 .table-head {
-  height: 32px;
+  min-height: 32px;
   border-bottom: 1px solid var(--border);
   color: var(--text-muted);
   font-size: 11px;
@@ -655,15 +624,163 @@ textarea {
   position: sticky;
   top: 0;
   z-index: 2;
+  align-items: start;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 .table-head-cell {
   position: relative;
   min-width: 0;
   display: flex;
-  align-items: center;
-  height: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-height: 100%;
   padding-right: 6px;
+}
+
+.table-head-cell.dragging {
+  opacity: 0.55;
+}
+
+.table-head-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.col-filter {
+  width: 100%;
+  min-width: 0;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.col-filter-text {
+  height: 22px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+.col-filter-range {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.col-filter-range.is-empty {
+  color: var(--text-muted);
+  font-size: 10px;
+  padding: 2px 0;
+}
+
+.dual-range {
+  position: relative;
+  height: 14px;
+}
+
+.dual-range-track {
+  position: absolute;
+  top: 5px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent, #3b82f6);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.dual-range input[type="range"] {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 14px;
+  margin: 0;
+  background: transparent;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.dual-range input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: var(--border-soft);
+  border-radius: 2px;
+}
+
+.dual-range input[type="range"]::-moz-range-track {
+  height: 4px;
+  background: var(--border-soft);
+  border-radius: 2px;
+}
+
+.dual-range input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text);
+  border: 1px solid var(--border);
+  margin-top: -3px;
+  pointer-events: auto;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+}
+
+.dual-range input[type="range"]::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text);
+  border: 1px solid var(--border);
+  pointer-events: auto;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+}
+
+.dual-range-labels {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  font-size: 9px;
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: normal;
+  line-height: 1.2;
+}
+
+.context-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border-soft);
+}
+
+.column-visibility-menu {
+  min-width: 140px;
+  max-height: min(360px, 70vh);
+  overflow: auto;
+}
+
+.column-visibility-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.column-visibility-item.is-disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.column-visibility-item input {
+  margin: 0;
 }
 
 .col-resizer {

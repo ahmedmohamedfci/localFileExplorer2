@@ -4,25 +4,20 @@ import { validatePattern } from "../lib/patterns";
 
 type Props = {
   title: string;
-  hint: string;
   entries: PatternEntry[];
   onChange: (entries: PatternEntry[]) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Show per-tab filter field (include patterns / split-by-search sections). */
-  showTabFilters?: boolean;
   /** Render body only (no collapsible header) — used inside Settings. */
   alwaysExpanded?: boolean;
 };
 
 export function PatternList({
   title,
-  hint,
   entries,
   onChange,
   open,
   onOpenChange,
-  showTabFilters = false,
   alwaysExpanded = false,
 }: Props) {
   const [draft, setDraft] = useState("");
@@ -66,7 +61,6 @@ export function PatternList({
 
   const body = (
     <>
-      <p className="hint">{hint}</p>
       <div className="pattern-list-scroll">
         {entries.length === 0 && <div className="empty-note">None yet</div>}
         {entries.map((entry, index) => (
@@ -116,26 +110,6 @@ export function PatternList({
                 ×
               </button>
             </div>
-            {showTabFilters && (
-              <div className="field-row tab-filter-row">
-                <label className="hint" style={{ minWidth: 52 }}>
-                  Filter
-                </label>
-                <input
-                  type="text"
-                  className="mono"
-                  placeholder="Tab filter (optional)…"
-                  value={entry.filter ?? ""}
-                  title="Extra pattern for this tab only (same language as include)"
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    updateAt(index, {
-                      filter: v.trim() ? v : undefined,
-                    });
-                  }}
-                />
-              </div>
-            )}
           </div>
         ))}
       </div>

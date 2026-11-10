@@ -27,6 +27,12 @@ import {
   type ScanProgress,
   type UiLayout,
 } from "./lib/types";
+import {
+  computeColumnExtents,
+  emptyColumnFilters,
+  fileMatchesColumnFilters,
+  type ColumnFilters,
+} from "./lib/columnFilters";
 import { type TableColumnConfig } from "./lib/tableColumns";
 import { readSettingsFromHash } from "./lib/urlSettings";
 import { syncWindowTitle } from "./lib/windowTitle";
@@ -94,6 +100,9 @@ export default function App() {
   const skipAutoApply = useRef(true);
   const autoApplyTimer = useRef<number | null>(null);
   const [hostUrl, setHostUrl] = useState<string | null>(null);
+  const [columnFilters, setColumnFilters] = useState<ColumnFilters>(
+    emptyColumnFilters,
+  );
 
   const leftPaneOpen = settings.ui.leftPaneOpen;
   const settingsOpen = settings.ui.settingsOpen;
@@ -313,11 +322,22 @@ export default function App() {
 
   const globalSearchActive = Boolean(testGlobalSearch && testPattern.trim());
   const filesForDisplay = globalSearchActive ? (globalSearchFiles ?? []) : files;
+  const filterExtents = useMemo(
+    () => computeColumnExtents(filesForDisplay),
+    [filesForDisplay],
+  );
+  const columnFilteredFiles = useMemo(
+    () =>
+      filesForDisplay.filter((f) =>
+        fileMatchesColumnFilters(f, columnFilters),
+      ),
+    [filesForDisplay, columnFilters],
+  );
 
   const { rows, displayedFileCount, testError } = useMemo(
     () =>
       buildDisplayRows({
-        files: filesForDisplay,
+        files: columnFilteredFiles,
         includePatterns: settings.includeRegexes,
         splitBySearch: settings.splitBySearch,
         // Limit already applied server-side when not split; with split, still cap per section here.
@@ -327,7 +347,7 @@ export default function App() {
         collapsedGroups,
       }),
     [
-      filesForDisplay,
+      columnFilteredFiles,
       settings.includeRegexes,
       settings.splitBySearch,
       settings.numFiles,
@@ -938,6 +958,9 @@ export default function App() {
               sortDir={settings.sortDir}
               columns={settings.tableColumns}
               onColumnsChange={onTableColumnsChange}
+              columnFilters={columnFilters}
+              onColumnFiltersChange={setColumnFilters}
+              filterExtents={filterExtents}
               emptyMessage={emptyMessage()}
               onSort={onTableSort}
               onSelect={(row) => setSelectedId(row.id)}
