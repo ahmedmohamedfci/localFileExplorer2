@@ -10,7 +10,7 @@ use crate::models::{
     ScanProgress,
 };
 use crate::paths::{self, path_to_string};
-use crate::playlist::{clear_playlist, open_path, write_and_open_playlist};
+use crate::playlist::{clear_playlist, open_path, reveal_in_folder, write_and_open_playlist};
 use crate::scan::run_scan;
 use crate::settings::{self, normalize_extensions};
 use crate::state::AppState;
@@ -168,6 +168,11 @@ pub fn open_file(path: String) -> AppResult<()> {
 }
 
 #[tauri::command]
+pub fn open_file_location(path: String) -> AppResult<()> {
+    reveal_in_folder(&path)
+}
+
+#[tauri::command]
 pub fn open_playlist(items: Vec<PlaylistItem>) -> AppResult<String> {
     write_and_open_playlist(&items)
 }
@@ -310,4 +315,48 @@ pub fn import_settings(app: AppHandle) -> AppResult<Option<InitResponse>> {
 #[tauri::command]
 pub fn get_host_url() -> String {
     crate::host::host_url()
+}
+
+#[tauri::command]
+pub fn export_catalog_json(app: AppHandle) -> AppResult<Option<String>> {
+    let file = app
+        .dialog()
+        .file()
+        .add_filter("JSON catalog", &["json"])
+        .set_file_name("lfe-catalog.json")
+        .blocking_save_file();
+    let Some(picked) = file else {
+        return Ok(None);
+    };
+    let path = picked.into_path().unwrap_or_default();
+    let db = CatalogDb::open()?;
+    let files = db.export_all_files()?;
+    let body = serde_json::to_string_pretty(&files)?;
+    std::fs::write(&path, body)?;
+    Ok(Some(path_to_string(&path)))
+}
+
+#[tauri::command]
+pub fn import_catalog_json(app: AppHandle) -> AppResult<Option<u64>> {
+    let file = app
+        .dialog()
+        .file()
+        .add_filter("JSON catalog", &["json"])
+        .blocking_pick_file();
+    let Some(picked) = file else {
+        return Ok(None);
+    };
+    let path = picked.into_path().unwrap_or_default();
+    let text = std::fs::read_to_string(&path)?;
+    let files: Vec<FileRecord> = serde_json::from_str(&text)?;
+    let db = CatalogDb::open()?;
+    let mut upserted = 0u64;
+    for file in files {
+        if file.path.trim().is_empty() {
+            continue;
+        }
+        db.import_file_record(&file)?;
+        upserted += 1;
+    }
+    Ok(Some(upserted))
 }

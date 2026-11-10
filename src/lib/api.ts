@@ -106,6 +106,12 @@ export function openFile(path: string): Promise<void> {
   return requireHostOrTauri();
 }
 
+export function openFileLocation(path: string): Promise<void> {
+  if (isTauri()) return invoke("open_file_location", { path });
+  if (isBrowserHost()) return host.hostOpenFileLocation(path);
+  return requireHostOrTauri();
+}
+
 export function openPlaylist(items: PlaylistItem[]): Promise<string> {
   if (isTauri()) return invoke("open_playlist", { items });
   if (isBrowserHost()) return host.hostOpenPlaylist(items);
@@ -172,6 +178,18 @@ export async function importSettings(): Promise<InitResponse | null> {
     if (imported) writeSettingsToHash(imported.settings);
     return imported;
   }
+  return requireHostOrTauri();
+}
+
+export async function exportCatalogJson(): Promise<string | null> {
+  if (isTauri()) return invoke("export_catalog_json");
+  if (isBrowserHost()) return host.hostExportCatalogJson();
+  return requireHostOrTauri();
+}
+
+export async function importCatalogJson(): Promise<number | null> {
+  if (isTauri()) return invoke("import_catalog_json");
+  if (isBrowserHost()) return host.hostImportCatalogJson();
   return requireHostOrTauri();
 }
 

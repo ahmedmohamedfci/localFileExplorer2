@@ -199,6 +199,59 @@ button:disabled {
   margin-bottom: 0;
 }
 
+.pattern-entry {
+  margin-bottom: 6px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.pattern-entry.dragging,
+.column-picker-item.dragging {
+  opacity: 0.55;
+}
+
+.drag-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  user-select: none;
+  font-size: 12px;
+  letter-spacing: -2px;
+  padding: 0 2px;
+}
+
+.tab-filter-row {
+  margin-top: 4px;
+  padding-left: 28px;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 160px;
+  padding: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.context-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+  font: inherit;
+}
+
+.context-menu-item:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+}
+
 .pane-header {
   padding: 12px 14px 8px;
   border-bottom: 1px solid var(--border-soft);

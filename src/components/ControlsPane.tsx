@@ -1,5 +1,7 @@
 import type { AppSettings, ScanProgress, UiLayout } from "../lib/types";
 import { truncateMiddle } from "../lib/format";
+import { ColumnOrderList } from "./ColumnOrderList";
+import { PatternList } from "./PatternList";
 
 type Props = {
   settings: AppSettings;
@@ -13,6 +15,8 @@ type Props = {
   onBrowseDatabase: () => void;
   onExportSettings: () => void;
   onImportSettings: () => void;
+  onExportCatalog: () => void;
+  onImportCatalog: () => void;
   onSaveSettings: () => void;
   scanning: boolean;
   progress: ScanProgress;
@@ -33,6 +37,8 @@ export function SettingsPanel({
   onBrowseDatabase,
   onExportSettings,
   onImportSettings,
+  onExportCatalog,
+  onImportCatalog,
   onSaveSettings,
   scanning,
   progress,
@@ -46,7 +52,9 @@ export function SettingsPanel({
       <div className="results-header">
         <div>
           <h1 style={{ margin: 0, fontSize: 15 }}>Settings</h1>
-          <div className="count">Scan, roots, extensions, data, help</div>
+          <div className="count">
+            Scan, roots, extensions, columns, include tabs, data, help
+          </div>
         </div>
         <button type="button" className="btn" onClick={onClose}>
           Back to results
@@ -173,6 +181,58 @@ export function SettingsPanel({
           <button
             type="button"
             className="section-toggle"
+            onClick={() => onUiChange({ columnsOpen: !ui.columnsOpen })}
+          >
+            <span className="chevron">{ui.columnsOpen ? "▼" : "▶"}</span>
+            <strong>Result columns</strong>
+          </button>
+          {ui.columnsOpen && (
+            <div className="section-body">
+              <ColumnOrderList
+                columns={settings.tableColumns}
+                onChange={(tableColumns) =>
+                  onChange({ ...settings, tableColumns })
+                }
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="section">
+          <button
+            type="button"
+            className="section-toggle"
+            onClick={() =>
+              onUiChange({ includePatternsOpen: !ui.includePatternsOpen })
+            }
+          >
+            <span className="chevron">
+              {ui.includePatternsOpen ? "▼" : "▶"}
+            </span>
+            <strong>Include tabs &amp; filters</strong>
+          </button>
+          {ui.includePatternsOpen && (
+            <div className="section-body">
+              <PatternList
+                title="Include patterns"
+                hint="Drag to reorder tabs (split-by-search sections). Each row can have its own Filter. Pattern language: x+(Y|Z|A)-S"
+                entries={settings.includeRegexes}
+                onChange={(includeRegexes) =>
+                  onChange({ ...settings, includeRegexes })
+                }
+                open
+                onOpenChange={() => {}}
+                showTabFilters
+                alwaysExpanded
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="section">
+          <button
+            type="button"
+            className="section-toggle"
             onClick={() => onUiChange({ dataOpen: !ui.dataOpen })}
           >
             <span className="chevron">{ui.dataOpen ? "▼" : "▶"}</span>
@@ -238,6 +298,18 @@ export function SettingsPanel({
                   Import settings…
                 </button>
               </div>
+              <div className="field-row" style={{ marginTop: 8 }}>
+                <button type="button" className="btn" onClick={onExportCatalog}>
+                  Export DB JSON…
+                </button>
+                <button type="button" className="btn" onClick={onImportCatalog}>
+                  Import DB JSON…
+                </button>
+              </div>
+              <p className="hint">
+                Catalog import upserts by path (primary key): updates existing rows
+                or inserts new ones. Indexed time is kept for paths already in the DB.
+              </p>
             </div>
           )}
         </div>

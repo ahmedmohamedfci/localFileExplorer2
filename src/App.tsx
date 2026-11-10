@@ -524,6 +524,29 @@ export default function App() {
     }
   }
 
+  async function exportCatalog() {
+    try {
+      const path = await api.exportCatalogJson();
+      if (path) setStatusMessage(`Catalog exported to ${path}`);
+    } catch (e) {
+      setStatusMessage(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function importCatalog() {
+    try {
+      const count = await api.importCatalogJson();
+      if (count == null) return;
+      setCatalogCount(await api.getCatalogCount());
+      setHasApplied(false);
+      setFiles([]);
+      setSelectedId(null);
+      setStatusMessage(`Catalog import: ${count} file record(s) upserted`);
+    } catch (e) {
+      setStatusMessage(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function openSelectedPlaylist() {
     const items = rowsToPlaylistItems(rows);
     if (items.length === 0 || moving) return;
@@ -755,6 +778,8 @@ export default function App() {
             onBrowseDatabase={() => void browseDatabase()}
             onExportSettings={() => void exportSettings()}
             onImportSettings={() => void importSettings()}
+            onExportCatalog={() => void exportCatalog()}
+            onImportCatalog={() => void importCatalog()}
             onSaveSettings={() => void saveSettingsOnly()}
             scanning={scanning}
             progress={progress}
@@ -918,6 +943,13 @@ export default function App() {
               onSelect={(row) => setSelectedId(row.id)}
               onOpenFile={(path) => {
                 void api.openFile(path);
+              }}
+              onOpenFileLocation={(path) => {
+                void api.openFileLocation(path).catch((e) => {
+                  setStatusMessage(
+                    e instanceof Error ? e.message : String(e),
+                  );
+                });
               }}
               onToggleGroup={(groupKey) => {
                 setCollapsedGroups((prev) => {

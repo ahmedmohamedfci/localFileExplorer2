@@ -141,15 +141,16 @@ export function FileFilterPane({
       <div className="pane-scroll">
         <PatternList
           title="Include patterns"
-          hint="OR on full path — empty = all. Use + for AND; !term to exclude (e.g. abc+ght+!xyz)."
+          hint="OR between rows. Within a row: + = AND, (Y|Z|A) = OR group, -S or !S = exclude (e.g. x+(Y|Z|A)-S). Drag to reorder tabs. Filter narrows that tab only."
           entries={settings.includeRegexes}
           onChange={onIncludeChange}
           open={settings.ui.includePatternsOpen}
           onOpenChange={(open) => onUiChange({ includePatternsOpen: open })}
+          showTabFilters
         />
         <PatternList
           title="Ignore patterns"
-          hint="OR on full path — wins over include. Use + for AND; !term to exclude."
+          hint="OR between rows — wins over include. Same pattern language; drag to reorder."
           entries={settings.ignoreRegexes}
           onChange={onIgnoreChange}
           open={settings.ui.ignorePatternsOpen}

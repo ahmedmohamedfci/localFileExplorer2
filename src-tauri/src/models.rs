@@ -31,6 +31,9 @@ pub type AppResult<T> = Result<T, AppError>;
 pub struct PatternEntry {
     pub pattern: String,
     pub enabled: bool,
+    /// Optional extra filter for this include tab/section only (same pattern language).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub filter: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,6 +61,8 @@ pub struct UiLayout {
     pub roots_open: bool,
     #[serde(default)]
     pub ext_open: bool,
+    #[serde(default = "default_true")]
+    pub columns_open: bool,
     #[serde(default)]
     pub data_open: bool,
     #[serde(default)]
@@ -78,6 +83,7 @@ impl Default for UiLayout {
             scan_open: true,
             roots_open: true,
             ext_open: false,
+            columns_open: true,
             data_open: false,
             how_to_open: false,
         }

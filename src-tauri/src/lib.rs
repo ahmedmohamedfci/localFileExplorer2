@@ -58,6 +58,7 @@ pub fn run() {
             commands::cancel_scan,
             commands::get_scan_progress,
             commands::open_file,
+            commands::open_file_location,
             commands::open_playlist,
             commands::start_move_files,
             commands::cancel_move_files,
@@ -65,6 +66,8 @@ pub fn run() {
             commands::pick_database_path,
             commands::export_settings,
             commands::import_settings,
+            commands::export_catalog_json,
+            commands::import_catalog_json,
             commands::get_host_url,
         ])
         .build(tauri::generate_context!())

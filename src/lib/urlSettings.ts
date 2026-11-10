@@ -113,7 +113,15 @@ function patternArray(value: unknown): PatternEntry[] {
     } else if (item && typeof item === "object") {
       const o = item as Record<string, unknown>;
       if (typeof o.pattern === "string") {
-        out.push({ pattern: o.pattern, enabled: o.enabled !== false });
+        const filter =
+          typeof o.filter === "string" && o.filter.trim()
+            ? o.filter
+            : undefined;
+        out.push({
+          pattern: o.pattern,
+          enabled: o.enabled !== false,
+          ...(filter ? { filter } : {}),
+        });
       }
     }
   }

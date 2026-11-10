@@ -9,6 +9,7 @@ import {
   type TableColumnId,
   type TableSortField,
 } from "../lib/tableColumns";
+import { ColumnOrderList } from "./ColumnOrderList";
 
 export type { TableSortField };
 
@@ -22,8 +23,15 @@ type Props = {
   onSort: (field: TableSortField) => void;
   onSelect: (row: ResultRow) => void;
   onOpenFile: (path: string) => void;
+  onOpenFileLocation: (path: string) => void;
   onToggleGroup: (groupKey: string) => void;
   emptyMessage: string;
+};
+
+type ContextMenuState = {
+  x: number;
+  y: number;
+  path: string;
 };
 
 export function ResultsTable({
@@ -36,12 +44,14 @@ export function ResultsTable({
   onSort,
   onSelect,
   onOpenFile,
+  onOpenFileLocation,
   onToggleGroup,
   emptyMessage,
 }: Props) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null);
   const shown = visibleColumns(columns);
   const gridTemplate = shown.map((c) => `${c.width}px`).join(" ");
   const totalWidth = shown.reduce((sum, c) => sum + c.width, 0);
@@ -64,6 +74,20 @@ export function ResultsTable({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [pickerOpen]);
 
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const close = () => setCtxMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [ctxMenu]);
+
   function setWidth(id: TableColumnId, width: number) {
     const min = TABLE_COLUMN_META[id].minWidth;
     onColumnsChange(
@@ -71,14 +95,6 @@ export function ResultsTable({
         c.id === id ? { ...c, width: Math.max(min, Math.round(width)) } : c,
       ),
     );
-  }
-
-  function toggleVisible(id: TableColumnId) {
-    const next = columns.map((c) =>
-      c.id === id ? { ...c, visible: !c.visible } : c,
-    );
-    if (!next.some((c) => c.visible)) return;
-    onColumnsChange(next);
   }
 
   function onResizeStart(
@@ -165,25 +181,19 @@ export function ResultsTable({
           </button>
           {pickerOpen && (
             <div className="column-picker-menu">
-              <div className="hint" style={{ marginBottom: 6 }}>
-                Show or hide fields from the catalog.
-              </div>
-              {columns.map((col) => (
-                <label key={col.id} className="inline column-picker-item">
-                  <input
-                    type="checkbox"
-                    checked={col.visible}
-                    onChange={() => toggleVisible(col.id)}
-                  />
-                  {TABLE_COLUMN_META[col.id].label}
-                </label>
-              ))}
+              <ColumnOrderList
+                columns={columns}
+                onChange={onColumnsChange}
+              />
             </div>
           )}
         </div>
       </div>
       <div className="table-scroll">
-        <div className="table-head" style={{ width: totalWidth, gridTemplateColumns: gridTemplate }}>
+        <div
+          className="table-head"
+          style={{ width: totalWidth, gridTemplateColumns: gridTemplate }}
+        >
           {shown.map((col) => {
             const meta = TABLE_COLUMN_META[col.id];
             const active = meta.sortable && sortField === col.id;
@@ -271,6 +281,16 @@ export function ResultsTable({
                     onDoubleClick={() => {
                       if (row.kind === "file") onOpenFile(row.file.path);
                     }}
+                    onContextMenu={(e) => {
+                      if (row.kind !== "file") return;
+                      e.preventDefault();
+                      onSelect(row);
+                      setCtxMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                        path: row.file.path,
+                      });
+                    }}
                   >
                     {renderCells(row)}
                   </div>
@@ -280,6 +300,34 @@ export function ResultsTable({
           )}
         </div>
       </div>
+      {ctxMenu && (
+        <div
+          className="context-menu"
+          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              onOpenFile(ctxMenu.path);
+              setCtxMenu(null);
+            }}
+          >
+            Open
+          </button>
+          <button
+            type="button"
+            className="context-menu-item"
+            onClick={() => {
+              onOpenFileLocation(ctxMenu.path);
+              setCtxMenu(null);
+            }}
+          >
+            Open file location
+          </button>
+        </div>
+      )}
     </div>
   );
 }

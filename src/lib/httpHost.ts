@@ -119,6 +119,13 @@ export async function hostOpenFile(path: string): Promise<void> {
   await hostFetch("/api/open/file", { method: "POST", json: { path } });
 }
 
+export async function hostOpenFileLocation(path: string): Promise<void> {
+  await hostFetch("/api/open/file-location", {
+    method: "POST",
+    json: { path },
+  });
+}
+
 export async function hostOpenPlaylist(items: PlaylistItem[]): Promise<string> {
   const res = await hostFetch<{ path: string }>("/api/open/playlist", {
     method: "POST",
@@ -153,6 +160,20 @@ export async function hostPickDatabasePath(): Promise<string | null> {
 
 export async function hostImportSettings(): Promise<InitResponse | null> {
   return hostFetch<InitResponse | null>("/api/dialog/import-settings", {
+    method: "POST",
+    json: {},
+  });
+}
+
+export async function hostExportCatalogJson(): Promise<string | null> {
+  return hostFetch<string | null>("/api/catalog/export", {
+    method: "POST",
+    json: {},
+  });
+}
+
+export async function hostImportCatalogJson(): Promise<number | null> {
+  return hostFetch<number | null>("/api/catalog/import", {
     method: "POST",
     json: {},
   });

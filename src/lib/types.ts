@@ -7,6 +7,8 @@ import {
 export type PatternEntry = {
   pattern: string;
   enabled: boolean;
+  /** Optional extra filter for this include tab/section only. */
+  filter?: string;
 };
 
 /** Open/collapsed layout remembered across launches. */
@@ -18,6 +20,7 @@ export type UiLayout = {
   scanOpen: boolean;
   rootsOpen: boolean;
   extOpen: boolean;
+  columnsOpen: boolean;
   dataOpen: boolean;
   howToOpen: boolean;
 };
@@ -178,6 +181,7 @@ export function defaultUiLayout(): UiLayout {
     scanOpen: true,
     rootsOpen: true,
     extOpen: false,
+    columnsOpen: true,
     dataOpen: false,
     howToOpen: false,
   };
@@ -220,6 +224,8 @@ function hydrateUi(raw: unknown): UiLayout {
     scanOpen: typeof o.scanOpen === "boolean" ? o.scanOpen : defaults.scanOpen,
     rootsOpen: typeof o.rootsOpen === "boolean" ? o.rootsOpen : defaults.rootsOpen,
     extOpen: typeof o.extOpen === "boolean" ? o.extOpen : defaults.extOpen,
+    columnsOpen:
+      typeof o.columnsOpen === "boolean" ? o.columnsOpen : defaults.columnsOpen,
     dataOpen: typeof o.dataOpen === "boolean" ? o.dataOpen : defaults.dataOpen,
     howToOpen: typeof o.howToOpen === "boolean" ? o.howToOpen : defaults.howToOpen,
   };

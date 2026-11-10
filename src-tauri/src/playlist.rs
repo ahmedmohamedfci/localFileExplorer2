@@ -59,6 +59,42 @@ pub fn open_path(path: &str) -> AppResult<()> {
     }
 }
 
+/// Open the parent folder in the file manager and select `path` (Explorer /select).
+pub fn reveal_in_folder(path: &str) -> AppResult<()> {
+    let p = PathBuf::from(path);
+    if !p.exists() {
+        return Err(AppError::Message(format!("Path not found: {path}")));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer")
+            .arg(format!("/select,{}", p.to_string_lossy()))
+            .spawn()
+            .map_err(|e| AppError::Message(format!("Failed to open file location: {e}")))?;
+        return Ok(());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .args(["-R", path])
+            .spawn()
+            .map_err(|e| AppError::Message(format!("Failed to open file location: {e}")))?;
+        return Ok(());
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let parent = p
+            .parent()
+            .ok_or_else(|| AppError::Message("No parent folder".into()))?;
+        Command::new("xdg-open")
+            .arg(parent)
+            .spawn()
+            .map_err(|e| AppError::Message(format!("Failed to open file location: {e}")))?;
+        Ok(())
+    }
+}
+
 fn open_with_mpc(playlist: &PathBuf) -> AppResult<()> {
     let candidates = [
         "mpc-hc64.exe",

@@ -65,8 +65,13 @@ export function buildDisplayRows(args: {
     const compiled = compileUserPattern(entry.pattern);
     if (!compiled.ok) continue;
 
+    const tabFilter = entry.filter?.trim() ?? "";
     const groupFiles = takeLimited(
-      filtered.filter((f) => pathMatchesClause(f.path, compiled.clause)),
+      filtered.filter((f) => {
+        if (!pathMatchesClause(f.path, compiled.clause)) return false;
+        if (!tabFilter) return true;
+        return pathMatchesUserPattern(f.path, tabFilter);
+      }),
       limit,
     );
     const groupKey = entry.pattern;

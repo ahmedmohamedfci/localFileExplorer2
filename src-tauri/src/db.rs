@@ -197,17 +197,21 @@ impl CatalogDb {
         Ok(out)
     }
 
-    /// Point a catalog row at a new path. A stale row already using `to` is removed first.
+    /// Rename/move in the catalog: drop the old path and insert the new one.
+    /// A new `indexedAt` is stamped — path is the identity; a rename is a new record.
     pub fn relocate_file(&self, from: &str, to: &str) -> AppResult<()> {
         if from == to {
             return Ok(());
         }
-        self.conn
-            .execute("DELETE FROM files WHERE path = ?1", params![to])?;
-        self.conn.execute(
-            "UPDATE files SET path = ?1 WHERE path = ?2",
-            params![to, from],
-        )?;
+        let Some(mut file) = self.get_file(from)? else {
+            return Ok(());
+        };
+        self.delete_file(from)?;
+        // Drop any stale row already at the destination.
+        let _ = self.delete_file(to);
+        file.path = to.to_string();
+        file.indexed_at = now_secs();
+        self.upsert_file(&file)?;
         Ok(())
     }
 
@@ -218,6 +222,8 @@ impl CatalogDb {
     }
 
     pub fn upsert_file(&self, file: &FileRecord) -> AppResult<()> {
+        // indexedAt is set only on first insert. Re-scans / metadata refreshes must not bump it.
+        // Renames delete the old path and insert the new one (fresh indexedAt).
         self.conn.execute(
             "INSERT INTO files(path, ext, sizeBytes, atime, mtime, birthtime, durationMs, indexedAt)
              VALUES(?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
@@ -228,7 +234,7 @@ impl CatalogDb {
                mtime=excluded.mtime,
                birthtime=excluded.birthtime,
                durationMs=COALESCE(excluded.durationMs, files.durationMs),
-               indexedAt=excluded.indexedAt",
+               indexedAt=files.indexedAt",
             params![
                 file.path,
                 file.ext,
@@ -241,6 +247,15 @@ impl CatalogDb {
             ],
         )?;
         Ok(())
+    }
+
+    /// Insert or update by path. On conflict, keep the original indexedAt.
+    pub fn import_file_record(&self, file: &FileRecord) -> AppResult<()> {
+        self.upsert_file(file)
+    }
+
+    pub fn export_all_files(&self) -> AppResult<Vec<FileRecord>> {
+        self.query_all()
     }
 
     pub fn delete_missing_under_roots(&self, roots: &[String]) -> AppResult<u64> {

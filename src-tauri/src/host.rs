@@ -7,10 +7,12 @@ use serde_json::json;
 use tiny_http::{Header, Method, Response, Server, StatusCode};
 
 use crate::db::CatalogDb;
-use crate::models::{AppError, AppResult, AppSettings, InitResponse, PlaylistItem, QueryRequest};
+use crate::models::{
+    AppError, AppResult, AppSettings, FileRecord, InitResponse, PlaylistItem, QueryRequest,
+};
 use crate::paths::{self, path_to_string};
 use crate::move_files;
-use crate::playlist::{open_path, write_and_open_playlist};
+use crate::playlist::{open_path, reveal_in_folder, write_and_open_playlist};
 use crate::session::{
     cancel_session_scan, session_scan_progress, start_session_scan, SessionManager,
 };
@@ -187,6 +189,56 @@ fn run_server(sessions: Arc<SessionManager>) -> AppResult<()> {
                     Err(e) => error_response(StatusCode(400), &AppError::Json(e)),
                 }
             }
+            (Method::Post, "/api/open/file-location") => {
+                #[derive(Deserialize)]
+                #[serde(rename_all = "camelCase")]
+                struct Body { path: String }
+                match serde_json::from_slice::<Body>(&body) {
+                    Ok(payload) => match reveal_in_folder(&payload.path) {
+                        Ok(()) => json_response(StatusCode(200), &json!({ "ok": true })),
+                        Err(e) => error_response(StatusCode(500), &e),
+                    },
+                    Err(e) => error_response(StatusCode(400), &AppError::Json(e)),
+                }
+            }
+            (Method::Post, "/api/catalog/export") => with_session_route(&sessions, session_id, |session| {
+                session.with_paths(|| {
+                    let Some(path) = rfd::FileDialog::new()
+                        .add_filter("JSON catalog", &["json"])
+                        .set_file_name("lfe-catalog.json")
+                        .save_file()
+                    else {
+                        return Ok(None::<String>);
+                    };
+                    let db = CatalogDb::open()?;
+                    let files = db.export_all_files()?;
+                    let body = serde_json::to_string_pretty(&files)?;
+                    std::fs::write(&path, body)?;
+                    Ok(Some(path_to_string(&path)))
+                })
+            }),
+            (Method::Post, "/api/catalog/import") => with_session_route(&sessions, session_id, |session| {
+                session.with_paths(|| {
+                    let Some(path) = rfd::FileDialog::new()
+                        .add_filter("JSON catalog", &["json"])
+                        .pick_file()
+                    else {
+                        return Ok(None::<u64>);
+                    };
+                    let text = std::fs::read_to_string(&path)?;
+                    let files: Vec<FileRecord> = serde_json::from_str(&text)?;
+                    let db = CatalogDb::open()?;
+                    let mut upserted = 0u64;
+                    for file in files {
+                        if file.path.trim().is_empty() {
+                            continue;
+                        }
+                        db.import_file_record(&file)?;
+                        upserted += 1;
+                    }
+                    Ok(Some(upserted))
+                })
+            }),
             (Method::Post, "/api/open/playlist") => with_session_route(&sessions, session_id, |session| {
                 let items: Vec<PlaylistItem> = parse_json_body(&body)?;
                 session.with_paths(|| {

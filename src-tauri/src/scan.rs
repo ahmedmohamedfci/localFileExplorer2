@@ -179,7 +179,7 @@ pub fn run_scan_with_sink(
                             }
                         }
                         if dirty {
-                            updated.indexed_at = now_secs();
+                            // Keep original indexed_at — only first sighting stamps it.
                             let _ = db.upsert_file(&updated);
                             files += 1;
                         }
@@ -270,6 +270,12 @@ pub fn run_scan_with_sink(
                     existing_duration
                 };
 
+                // New path → now. Existing path → preserve first-index time (upsert keeps it).
+                // Renames: old path deleted below; new path inserts with a fresh indexed_at.
+                let indexed_at = existing
+                    .as_ref()
+                    .map(|e| e.indexed_at)
+                    .unwrap_or_else(now_secs);
                 let record = FileRecord {
                     path: path_str,
                     ext,
@@ -278,7 +284,7 @@ pub fn run_scan_with_sink(
                     mtime,
                     birthtime,
                     duration_ms,
-                    indexed_at: now_secs(),
+                    indexed_at,
                 };
                 db.upsert_file(&record)?;
                 files += 1;
