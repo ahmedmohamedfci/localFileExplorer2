@@ -117,6 +117,7 @@ export function formatCell(
     case "path":
       return f.path;
     case "name":
+      // Always basename of path — never depends on Path column visibility.
       return fileName(f.path);
     case "ext":
       return f.ext;

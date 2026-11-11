@@ -1,20 +1,37 @@
-import { useEffect, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  themeQuartz,
+  type CellDoubleClickedEvent,
+  type CellKeyDownEvent,
+  type ColDef,
+  type ColumnMovedEvent,
+  type ColumnResizedEvent,
+  type ColumnVisibleEvent,
+  type GetRowIdParams,
+  type GridApi,
+  type GridReadyEvent,
+  type RowClassParams,
+  type RowClickedEvent,
+} from "ag-grid-community";
+import { AgGridReact } from "ag-grid-react";
 import type { ResultRow } from "../lib/types";
 import {
-  columnFilterKind,
   type ColumnFilterExtents,
   type ColumnFilters,
 } from "../lib/columnFilters";
+import { fileName } from "../lib/format";
 import {
   TABLE_COLUMN_META,
   formatCell,
-  visibleColumns,
   type TableColumnConfig,
   type TableColumnId,
   type TableSortField,
 } from "../lib/tableColumns";
-import { ColumnRangeFilter } from "./ColumnRangeFilter";
+import {
+  ResultsTableHeader,
+  ResultsTableUiContext,
+  type ResultsGridContext,
+} from "./ResultsTableHeader";
 
 export type { TableSortField };
 
@@ -45,8 +62,58 @@ type ContextMenuState = {
 type HeaderMenuState = {
   x: number;
   y: number;
-  columnId: TableColumnId;
 };
+
+const gridTheme = themeQuartz.withParams({
+  backgroundColor: "#1a1d21",
+  foregroundColor: "#e8eaed",
+  chromeBackgroundColor: "#22262c",
+  headerBackgroundColor: "#22262c",
+  headerTextColor: "#9aa3af",
+  oddRowBackgroundColor: "#1a1d21",
+  rowHoverColor: "#30363f",
+  selectedRowBackgroundColor: "#2a3a4d",
+  borderColor: "#3a414c",
+  wrapperBorder: false,
+  fontFamily: "Segoe UI, Candara, Gill Sans, sans-serif",
+  fontSize: 12,
+  headerFontSize: 11,
+  spacing: 4,
+  rowHeight: 32,
+  headerHeight: 68,
+  cellHorizontalPadding: 8,
+});
+
+function cellText(colId: TableColumnId, row: ResultRow): string {
+  if (row.kind === "section") {
+    if (colId === "index") return "▶";
+    if (colId === "path" || colId === "name") {
+      return `${row.label} (${row.count})`;
+    }
+    return "";
+  }
+  if (row.kind === "delimiter") {
+    if (colId === "index") {
+      return row.toggle === "collapse" ? "▼" : String(row.playlistIndex);
+    }
+    if (colId === "path" || colId === "name") return row.label;
+    return "";
+  }
+  // Filename is always the basename of path — independent of Path column visibility.
+  if (colId === "name") return fileName(row.file.path);
+  return formatCell(colId, {
+    playlistIndex: row.playlistIndex,
+    file: row.file,
+  });
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 export function ResultsTable({
   rows,
@@ -65,21 +132,70 @@ export function ResultsTable({
   onToggleGroup,
   emptyMessage,
 }: Props) {
-  const parentRef = useRef<HTMLDivElement>(null);
+  const apiRef = useRef<GridApi<ResultRow> | null>(null);
+  const syncingColumns = useRef(false);
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null);
   const [headerMenu, setHeaderMenu] = useState<HeaderMenuState | null>(null);
-  const [dragId, setDragId] = useState<TableColumnId | null>(null);
-  const shown = visibleColumns(columns);
-  const gridTemplate = shown.map((c) => `${c.width}px`).join(" ");
-  const totalWidth = shown.reduce((sum, c) => sum + c.width, 0);
-  const visibleCount = shown.length;
+  const visibleCount = columns.filter((c) => c.visible).length;
 
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 32,
-    overscan: 12,
-  });
+  const onHeaderContextMenu = useCallback(
+    (e: React.MouseEvent, _columnId: TableColumnId) => {
+      setCtxMenu(null);
+      setHeaderMenu({ x: e.clientX, y: e.clientY });
+    },
+    [],
+  );
+
+  const gridContext = useMemo<ResultsGridContext>(
+    () => ({
+      columnFilters,
+      onColumnFiltersChange,
+      filterExtents,
+      sortField,
+      sortDir,
+      onSort,
+      onHeaderContextMenu,
+    }),
+    [
+      columnFilters,
+      onColumnFiltersChange,
+      filterExtents,
+      sortField,
+      sortDir,
+      onSort,
+      onHeaderContextMenu,
+    ],
+  );
+
+  const columnDefs = useMemo<ColDef<ResultRow>[]>(() => {
+    return columns.map((col) => {
+      const meta = TABLE_COLUMN_META[col.id];
+      return {
+        colId: col.id,
+        headerName: meta.label,
+        width: col.width,
+        minWidth: meta.minWidth,
+        hide: !col.visible,
+        // Parent owns sort order; header button calls onSort via context.
+        sortable: false,
+        resizable: true,
+        suppressHeaderFilterButton: true,
+        suppressHeaderMenuButton: true,
+        headerComponent: ResultsTableHeader,
+        valueGetter: (p) => {
+          if (!p.data) return "";
+          return cellText(col.id, p.data);
+        },
+        tooltipValueGetter: (p) => {
+          if (!p.data || p.data.kind !== "file") return undefined;
+          if (col.id === "path" || col.id === "name") return p.data.file.path;
+          return undefined;
+        },
+        cellClass:
+          col.id === "path" || col.id === "name" ? "cell-path" : "cell-num",
+      };
+    });
+  }, [columns]);
 
   useEffect(() => {
     if (!ctxMenu && !headerMenu) return;
@@ -98,43 +214,90 @@ export function ResultsTable({
     };
   }, [ctxMenu, headerMenu]);
 
-  function setWidth(id: TableColumnId, width: number) {
-    const min = TABLE_COLUMN_META[id].minWidth;
-    onColumnsChange(
-      columns.map((c) =>
-        c.id === id ? { ...c, width: Math.max(min, Math.round(width)) } : c,
-      ),
-    );
+  useEffect(() => {
+    const api = apiRef.current;
+    if (!api || api.isDestroyed()) return;
+    api.redrawRows();
+  }, [selectedId]);
+
+  useEffect(() => {
+    const api = apiRef.current;
+    if (!api || api.isDestroyed()) return;
+    syncingColumns.current = true;
+    const state = columns.map((c) => ({
+      colId: c.id,
+      width: c.width,
+      hide: !c.visible,
+    }));
+    api.applyColumnState({ state, applyOrder: true });
+    syncingColumns.current = false;
+  }, [columns]);
+
+  function readColumnsFromGrid(api: GridApi<ResultRow>): TableColumnConfig[] {
+    const ordered = api.getColumnState();
+    const byId = new Map(columns.map((c) => [c.id, c]));
+    const next: TableColumnConfig[] = [];
+    for (const s of ordered) {
+      const id = s.colId as TableColumnId;
+      const prev = byId.get(id);
+      if (!prev) continue;
+      next.push({
+        id,
+        width: Math.round(s.width ?? prev.width),
+        visible: !s.hide,
+      });
+      byId.delete(id);
+    }
+    for (const leftover of byId.values()) next.push(leftover);
+    if (!next.some((c) => c.visible)) {
+      const path = next.find((c) => c.id === "path");
+      if (path) path.visible = true;
+    }
+    return next;
   }
 
-  function onResizeStart(
-    e: React.MouseEvent,
-    id: TableColumnId,
-    startWidth: number,
-  ) {
-    e.preventDefault();
-    e.stopPropagation();
-    const startX = e.clientX;
-    const onMove = (ev: MouseEvent) => {
-      setWidth(id, startWidth + (ev.clientX - startX));
-    };
-    const onUp = () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+  function onGridReady(e: GridReadyEvent<ResultRow>) {
+    apiRef.current = e.api;
   }
 
-  function moveColumn(fromId: TableColumnId, toId: TableColumnId) {
-    if (fromId === toId) return;
-    const from = columns.findIndex((c) => c.id === fromId);
-    const to = columns.findIndex((c) => c.id === toId);
-    if (from < 0 || to < 0) return;
-    const next = [...columns];
-    const [item] = next.splice(from, 1);
-    next.splice(to, 0, item!);
-    onColumnsChange(next);
+  function onColumnResized(e: ColumnResizedEvent<ResultRow>) {
+    if (syncingColumns.current || !e.finished || !e.column) return;
+    onColumnsChange(readColumnsFromGrid(e.api));
+  }
+
+  function onColumnMoved(e: ColumnMovedEvent<ResultRow>) {
+    if (syncingColumns.current || !e.finished) return;
+    onColumnsChange(readColumnsFromGrid(e.api));
+  }
+
+  function onColumnVisible(e: ColumnVisibleEvent<ResultRow>) {
+    if (syncingColumns.current) return;
+    onColumnsChange(readColumnsFromGrid(e.api));
+  }
+
+  function onRowClicked(e: RowClickedEvent<ResultRow>) {
+    const row = e.data;
+    if (!row) return;
+    if (row.kind === "section") {
+      onToggleGroup(row.groupKey);
+      return;
+    }
+    onSelect(row);
+    if (row.kind === "delimiter" && row.toggle === "collapse" && row.groupKey) {
+      onToggleGroup(row.groupKey);
+    }
+  }
+
+  function onCellDoubleClicked(e: CellDoubleClickedEvent<ResultRow>) {
+    const row = e.data;
+    if (row?.kind === "file") onOpenFile(row.file.path);
+  }
+
+  function onCellKeyDown(e: CellKeyDownEvent<ResultRow>) {
+    const ke = e.event as KeyboardEvent | undefined;
+    if (!ke || ke.key !== "Enter" || !selectedId) return;
+    const row = rows.find((r) => r.id === selectedId);
+    if (row?.kind === "file") onOpenFile(row.file.path);
   }
 
   function setColumnVisible(id: TableColumnId, visible: boolean) {
@@ -143,243 +306,60 @@ export function ResultsTable({
     onColumnsChange(next);
   }
 
-  function setTextFilter(id: TableColumnId, value: string) {
-    const next = { ...columnFilters };
-    if (!value.trim()) delete next[id];
-    else next[id] = { kind: "text", value };
-    onColumnFiltersChange(next);
-  }
+  const getRowId = useCallback(
+    (p: GetRowIdParams<ResultRow>) => p.data.id,
+    [],
+  );
 
-  function setRangeFilter(
-    id: TableColumnId,
-    min: number | null,
-    max: number | null,
-  ) {
-    const next = { ...columnFilters };
-    if (min == null && max == null) delete next[id];
-    else next[id] = { kind: "range", min, max };
-    onColumnFiltersChange(next);
-  }
-
-  function renderCells(row: ResultRow) {
-    return shown.map((col) => {
-      if (row.kind === "section") {
-        if (col.id === "index") {
-          return (
-            <div key={col.id} className="num">
-              ▶
-            </div>
-          );
-        }
-        if (col.id === "path") {
-          return (
-            <div key={col.id} className="path">
-              {row.label} ({row.count})
-            </div>
-          );
-        }
-        return <div key={col.id} />;
-      }
-      if (row.kind === "delimiter") {
-        if (col.id === "index") {
-          return (
-            <div key={col.id} className="num">
-              {row.toggle === "collapse" ? "▼" : row.playlistIndex}
-            </div>
-          );
-        }
-        if (col.id === "path") {
-          return (
-            <div key={col.id} className="path">
-              {row.label}
-            </div>
-          );
-        }
-        return <div key={col.id} />;
-      }
-      const text = formatCell(col.id, {
-        playlistIndex: row.playlistIndex,
-        file: row.file,
-      });
-      return (
-        <div
-          key={col.id}
-          className={col.id === "path" || col.id === "name" ? "path" : "num"}
-          title={
-            col.id === "path" || col.id === "name" ? row.file.path : undefined
-          }
-        >
-          {text}
-        </div>
-      );
-    });
-  }
+  const getRowClass = useCallback(
+    (p: RowClassParams<ResultRow>) => {
+      const classes: string[] = [];
+      if (p.data?.kind === "section") classes.push("row-section");
+      if (p.data?.kind === "delimiter") classes.push("row-delimiter");
+      if (p.data?.id === selectedId) classes.push("row-selected");
+      return classes.join(" ");
+    },
+    [selectedId],
+  );
 
   return (
+    <ResultsTableUiContext.Provider value={gridContext}>
     <div className="table-wrap">
-      <div className="table-scroll">
-        <div
-          className="table-head"
-          style={{ width: totalWidth, gridTemplateColumns: gridTemplate }}
-        >
-          {shown.map((col) => {
-            const meta = TABLE_COLUMN_META[col.id];
-            const active = meta.sortable && sortField === col.id;
-            const arrow = active ? (sortDir === "asc" ? " ▲" : " ▼") : "";
-            const filterKind = columnFilterKind(col.id);
-            const filter = columnFilters[col.id];
-            return (
-              <div
-                key={col.id}
-                className={`table-head-cell ${dragId === col.id ? "dragging" : ""}`}
-                draggable
-                onDragStart={() => setDragId(col.id)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (dragId) moveColumn(dragId, col.id);
-                  setDragId(null);
-                }}
-                onDragEnd={() => setDragId(null)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setCtxMenu(null);
-                  setHeaderMenu({
-                    x: e.clientX,
-                    y: e.clientY,
-                    columnId: col.id,
-                  });
-                }}
-              >
-                <div className="table-head-label">
-                  <span className="drag-handle" title="Drag to reorder">
-                    ⋮⋮
-                  </span>
-                  {meta.sortable ? (
-                    <button
-                      type="button"
-                      className={`sort-head ${active ? "active" : ""}`}
-                      onClick={() => onSort(col.id as TableSortField)}
-                      title={`Sort by ${meta.label}. Right-click for show/hide.`}
-                    >
-                      {meta.label}
-                      {arrow}
-                    </button>
-                  ) : (
-                    <span title="Right-click for show/hide">{meta.label}</span>
-                  )}
-                </div>
-                {filterKind === "text" && (
-                  <input
-                    type="text"
-                    className="col-filter col-filter-text mono"
-                    placeholder="Filter…"
-                    value={
-                      filter?.kind === "text" ? filter.value : ""
-                    }
-                    onChange={(e) => setTextFilter(col.id, e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    draggable={false}
-                    onDragStart={(e) => e.preventDefault()}
-                  />
-                )}
-                {filterKind === "range" && (
-                  <ColumnRangeFilter
-                    id={col.id}
-                    extent={filterExtents[col.id]}
-                    min={filter?.kind === "range" ? filter.min : null}
-                    max={filter?.kind === "range" ? filter.max : null}
-                    onChange={(min, max) => setRangeFilter(col.id, min, max)}
-                  />
-                )}
-                <span
-                  className="col-resizer"
-                  onMouseDown={(e) => onResizeStart(e, col.id, col.width)}
-                  title="Drag to resize"
-                />
-              </div>
-            );
-          })}
-        </div>
-        <div
-          className="table-body"
-          ref={parentRef}
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if (e.key !== "Enter" || !selectedId) return;
-            const row = rows.find((r) => r.id === selectedId);
-            if (row?.kind === "file") onOpenFile(row.file.path);
+      <div className="table-grid">
+        <AgGridReact<ResultRow>
+          theme={gridTheme}
+          rowData={rows}
+          columnDefs={columnDefs}
+          context={gridContext}
+          getRowId={getRowId}
+          getRowClass={getRowClass}
+          animateRows={false}
+          ensureDomOrder
+          tooltipShowDelay={400}
+          preventDefaultOnContextMenu
+          onGridReady={onGridReady}
+          onColumnResized={onColumnResized}
+          onColumnMoved={onColumnMoved}
+          onColumnVisible={onColumnVisible}
+          onRowClicked={onRowClicked}
+          onCellDoubleClicked={onCellDoubleClicked}
+          onCellKeyDown={onCellKeyDown}
+          onCellContextMenu={(e) => {
+            const row = e.data;
+            if (row?.kind !== "file") return;
+            const mouse = e.event as MouseEvent | undefined;
+            if (!mouse) return;
+            mouse.preventDefault();
+            onSelect(row);
+            setHeaderMenu(null);
+            setCtxMenu({
+              x: mouse.clientX,
+              y: mouse.clientY,
+              path: row.file.path,
+            });
           }}
-        >
-          {rows.length === 0 ? (
-            <div className="table-empty">{emptyMessage}</div>
-          ) : (
-            <div
-              style={{
-                height: virtualizer.getTotalSize(),
-                position: "relative",
-                width: totalWidth,
-              }}
-            >
-              {virtualizer.getVirtualItems().map((item) => {
-                const row = rows[item.index];
-                const selected = row.id === selectedId;
-                const kindClass =
-                  row.kind === "section"
-                    ? "section"
-                    : row.kind === "delimiter"
-                      ? "delimiter"
-                      : "";
-                return (
-                  <div
-                    key={row.id}
-                    className={`table-row ${kindClass} ${selected ? "selected" : ""}`}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: totalWidth,
-                      gridTemplateColumns: gridTemplate,
-                      transform: `translateY(${item.start}px)`,
-                    }}
-                    title={row.kind === "file" ? row.file.path : undefined}
-                    onClick={() => {
-                      if (row.kind === "section") {
-                        onToggleGroup(row.groupKey);
-                        return;
-                      }
-                      onSelect(row);
-                      if (
-                        row.kind === "delimiter" &&
-                        row.toggle === "collapse" &&
-                        row.groupKey
-                      ) {
-                        onToggleGroup(row.groupKey);
-                      }
-                    }}
-                    onDoubleClick={() => {
-                      if (row.kind === "file") onOpenFile(row.file.path);
-                    }}
-                    onContextMenu={(e) => {
-                      if (row.kind !== "file") return;
-                      e.preventDefault();
-                      onSelect(row);
-                      setHeaderMenu(null);
-                      setCtxMenu({
-                        x: e.clientX,
-                        y: e.clientY,
-                        path: row.file.path,
-                      });
-                    }}
-                  >
-                    {renderCells(row)}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+          overlayNoRowsTemplate={`<span class="table-empty">${escapeHtml(emptyMessage)}</span>`}
+        />
       </div>
       {ctxMenu && (
         <div
@@ -437,5 +417,6 @@ export function ResultsTable({
         </div>
       )}
     </div>
+    </ResultsTableUiContext.Provider>
   );
 }

@@ -28,8 +28,8 @@ export function formatDuration(ms: number | null | undefined): string {
   return `${m}:${ss}`;
 }
 
-export function formatTimestamp(secs: number): string {
-  if (!Number.isFinite(secs) || secs <= 0) return "—";
+export function formatTimestamp(secs: number | null | undefined): string {
+  if (secs == null || !Number.isFinite(secs) || secs <= 0) return "—";
   try {
     return new Date(secs * 1000).toLocaleString();
   } catch {

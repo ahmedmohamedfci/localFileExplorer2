@@ -47,13 +47,13 @@ function numericValue(id: TableColumnId, file: FileRecord): number | null {
         ? 0
         : file.durationMs;
     case "mtime":
-      return file.mtime;
+      return Number.isFinite(file.mtime) ? file.mtime : null;
     case "atime":
-      return file.atime;
+      return Number.isFinite(file.atime) ? file.atime : null;
     case "birthtime":
-      return file.birthtime;
+      return Number.isFinite(file.birthtime) ? file.birthtime : null;
     case "indexedAt":
-      return file.indexedAt;
+      return Number.isFinite(file.indexedAt) ? file.indexedAt : null;
     default:
       return null;
   }
